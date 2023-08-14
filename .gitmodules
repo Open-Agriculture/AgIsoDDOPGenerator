@@ -1,0 +1,9 @@
+[submodule "submodules/sdl"]
+	path = submodules/sdl
+	url = https://github.com/libsdl-org/SDL.git
+[submodule "submodules/imgui"]
+	path = submodules/imgui
+	url = https://github.com/ocornut/imgui.git
+[submodule "submodules/agisostack"]
+	path = submodules/agisostack
+	url = https://github.com/Open-Agriculture/AgIsoStack-plus-plus.git
