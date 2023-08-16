@@ -26,11 +26,11 @@ public:
 
 	void sink_CAN_stack_log(CANStackLogger::LoggingLevel level, const std::string &text) override
 	{
-		logHistory.push_front({ level, text });
-		
+		logHistory.push_back({ level, text });
+
 		while (logHistory.size() > 50)
 		{
-			logHistory.pop_back();
+			logHistory.pop_front();
 		}
 	}
 

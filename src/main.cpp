@@ -14,7 +14,7 @@
 #pragma comment(linker, "/SUBSYSTEM:windows /ENTRY:mainCRTStartup")
 #endif // WIN32
 
-int main(int aArgCount, char *apArgValues[], char *[]) 
+int main(int aArgCount, char *apArgValues[], char *[])
 {
 	DDOPGeneratorGUI GUI;
 
