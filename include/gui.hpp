@@ -34,6 +34,7 @@ public:
 	void render_device_property_settings(std::shared_ptr<isobus::task_controller_object::DevicePropertyObject> object);
 	void render_device_presentation_settings(std::shared_ptr<isobus::task_controller_object::DeviceValuePresentationObject> object);
 	void render_current_selected_object_settings(std::shared_ptr<isobus::task_controller_object::Object> object);
+	void render_save();
 	void on_selected_object_changed(std::shared_ptr<isobus::task_controller_object::Object> newObject);
 
 private:
@@ -41,6 +42,7 @@ private:
 
 	static std::string get_element_type_string(isobus::task_controller_object::DeviceElementObject::Type type);
 	static std::string get_object_type_string(isobus::task_controller_object::ObjectTypes type);
+	const std::array<std::uint8_t, 7> generate_localization_label();
 
 	std::string languageCode; ///< The last received language code, such as "en", "es", "de", etc.
 	isobus::LanguageCommandInterface::DecimalSymbols decimalSymbol = isobus::LanguageCommandInterface::DecimalSymbols::Point;
@@ -61,10 +63,15 @@ private:
 	char designatorBuffer[129] = { 0 };
 	char softwareVersionBuffer[129] = { 0 };
 	char serialNumberBuffer[129] = { 0 };
-	char structureLabelBuffer[129] = { 0 };
+	char structureLabelBuffer[8] = { 0 };
+	char extendedStructureLabelBuffer[129] = { 0 };
+	char hexIsoNameBuffer[17] = { 0 };
 	std::string lastFileName;
+	int elementNumberBuffer = 0;
+	int parentObjectBuffer = 0;
 	std::uint16_t selectedObjectID = 0xFFFF;
 	bool openFileDialogue = false;
+	bool saveAsModal = false;
 	bool currentPoolValid = false;
 };
 

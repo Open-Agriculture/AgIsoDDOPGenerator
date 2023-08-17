@@ -17,6 +17,8 @@
 #include "logsink.hpp"
 
 #include <cstdio>
+#include <fstream>
+#include <sstream>
 
 void DDOPGeneratorGUI::start()
 {
@@ -130,8 +132,16 @@ void DDOPGeneratorGUI::start()
 		ImGui::NewFrame();
 
 		// GUI Main Code:
+		bool prevSaveAsModalState = saveAsModal;
 		shouldExit = render_menu_bar();
 		render_open_file_menu();
+
+		if ((saveAsModal != prevSaveAsModalState) && saveAsModal)
+		{
+			ImGui::OpenPopup("##Save As Modal");
+		}
+
+		render_save();
 
 		if ((nullptr != currentObjectPool) && currentPoolValid)
 		{
@@ -207,13 +217,25 @@ bool DDOPGeneratorGUI::render_menu_bar()
 				FileDialog::file_dialog_open = true;
 				openFileDialogue = true;
 			}
+
+			if (!currentPoolValid)
+			{
+				ImGui::BeginDisabled();
+			}
 			if (true == ImGui::MenuItem("Save as", "Save current DDOP to a file"))
 			{
+				FileDialog::file_dialog_open = false;
+				saveAsModal = true;
+				memset(filePathBuffer, 0, IM_ARRAYSIZE(filePathBuffer));
 			}
 			if (true == ImGui::MenuItem("Close", "Closes the active file"))
 			{
 				currentObjectPool.reset();
 				currentPoolValid = false;
+			}
+			else if (!currentPoolValid)
+			{
+				ImGui::EndDisabled();
 			}
 			ImGui::EndMenu();
 		}
@@ -582,9 +604,57 @@ void DDOPGeneratorGUI::render_object_tree()
 void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_controller_object::DeviceObject> object)
 {
 	ImGui::InputText("Designator", designatorBuffer, IM_ARRAYSIZE(designatorBuffer));
+
+	auto designator = std::string(designatorBuffer);
+	if (designator != object->get_designator())
+	{
+		object->set_designator(designator);
+	}
+
 	ImGui::InputText("Software Version", softwareVersionBuffer, IM_ARRAYSIZE(softwareVersionBuffer));
+
+	auto version = std::string(softwareVersionBuffer);
+	if (version != object->get_software_version())
+	{
+		object->set_software_version(version);
+	}
+
 	ImGui::InputText("Serial Number", serialNumberBuffer, IM_ARRAYSIZE(serialNumberBuffer));
+
+	auto serial = std::string(serialNumberBuffer);
+	if (serial != object->get_serial_number())
+	{
+		object->set_serial_number(serial);
+	}
+
 	ImGui::InputText("Structure Label", structureLabelBuffer, IM_ARRAYSIZE(structureLabelBuffer));
+
+	auto structureLabel = std::string(structureLabelBuffer);
+	if (structureLabel != object->get_structure_label())
+	{
+		object->set_structure_label(structureLabel);
+	}
+
+	ImGui::InputText("Extended Structure Label", extendedStructureLabelBuffer, IM_ARRAYSIZE(extendedStructureLabelBuffer));
+
+	auto extendedStructureLabel = std::string(extendedStructureLabelBuffer);
+	if (extendedStructureLabel != object->get_structure_label())
+	{
+		std::vector<std::uint8_t> convertedLabel(extendedStructureLabel.begin(), extendedStructureLabel.end());
+		object->set_extended_structure_label(convertedLabel);
+	}
+
+	ImGui::InputText("ISO NAME (hex)", hexIsoNameBuffer, IM_ARRAYSIZE(hexIsoNameBuffer));
+
+	char **nameEnd = nullptr;
+	std::string tempNAME(hexIsoNameBuffer);
+	auto integerISONAME = strtoull(tempNAME.c_str(), nameEnd, 16);
+
+	if (integerISONAME != object->get_iso_name())
+	{
+		object->set_iso_name(integerISONAME);
+	}
+
 	ImGui::SeparatorText("Localization Label");
 
 	{
@@ -802,26 +872,90 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 			ImGui::EndListBox();
 		}
 	}
+
+	auto localizationData = generate_localization_label();
+	auto currentLocalization = object->get_localization_label();
+
+	if (localizationData != currentLocalization)
+	{
+		object->set_localization_label(localizationData);
+	}
 }
 
 void DDOPGeneratorGUI::render_device_element_settings(std::shared_ptr<isobus::task_controller_object::DeviceElementObject> object)
 {
 	ImGui::InputText("Designator", designatorBuffer, IM_ARRAYSIZE(designatorBuffer));
+
+	auto designator = std::string(designatorBuffer);
+	if (designator != object->get_designator())
+	{
+		object->set_designator(designator);
+	}
+
+	ImGui::InputInt("Element Number", &elementNumberBuffer);
+
+	if (elementNumberBuffer > 4095)
+	{
+		// 12 bits is the max element
+		elementNumberBuffer = 4095;
+	}
+
+	if (object->get_element_number() != elementNumberBuffer)
+	{
+		object->set_element_number(elementNumberBuffer);
+	}
+
+	ImGui::InputInt("Parent Object ID", &parentObjectBuffer);
+
+	if (object->get_parent_object() > 0xFFFF)
+	{
+		parentObjectBuffer = 0xFFFF;
+	}
+
+	if (parentObjectBuffer != object->get_parent_object())
+	{
+		object->set_parent_object(parentObjectBuffer);
+	}
+
+	auto parent = currentObjectPool->get_object_by_id(parentObjectBuffer);
+	if (nullptr != parent)
+	{
+		std::string designator = "Parent's designator is \"" + parent->get_designator() + "\"";
+		ImGui::Text(designator.c_str());
+	}
 }
 
 void DDOPGeneratorGUI::render_device_process_data_settings(std::shared_ptr<isobus::task_controller_object::DeviceProcessDataObject> object)
 {
 	ImGui::InputText("Designator", designatorBuffer, IM_ARRAYSIZE(designatorBuffer));
+
+	auto designator = std::string(designatorBuffer);
+	if (designator != object->get_designator())
+	{
+		object->set_designator(designator);
+	}
 }
 
 void DDOPGeneratorGUI::render_device_property_settings(std::shared_ptr<isobus::task_controller_object::DevicePropertyObject> object)
 {
 	ImGui::InputText("Designator", designatorBuffer, IM_ARRAYSIZE(designatorBuffer));
+
+	auto designator = std::string(designatorBuffer);
+	if (designator != object->get_designator())
+	{
+		object->set_designator(designator);
+	}
 }
 
 void DDOPGeneratorGUI::render_device_presentation_settings(std::shared_ptr<isobus::task_controller_object::DeviceValuePresentationObject> object)
 {
 	ImGui::InputText("Designator", designatorBuffer, IM_ARRAYSIZE(designatorBuffer));
+
+	auto designator = std::string(designatorBuffer);
+	if (designator != object->get_designator())
+	{
+		object->set_designator(designator);
+	}
 }
 
 void DDOPGeneratorGUI::render_current_selected_object_settings(std::shared_ptr<isobus::task_controller_object::Object> object)
@@ -868,16 +1002,56 @@ void DDOPGeneratorGUI::on_selected_object_changed(std::shared_ptr<isobus::task_c
 	memset(designatorBuffer, 0, sizeof(designatorBuffer));
 	memcpy(designatorBuffer, newObject->get_designator().c_str(), newObject->get_designator().length() <= 128 ? newObject->get_designator().length() : 128);
 
-	if (isobus::task_controller_object::ObjectTypes::Device == newObject->get_object_type())
+	switch (newObject->get_object_type())
 	{
-		auto object = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceObject>(newObject);
-		memset(softwareVersionBuffer, 0, sizeof(softwareVersionBuffer));
-		memset(serialNumberBuffer, 0, sizeof(serialNumberBuffer));
-		memset(structureLabelBuffer, 0, sizeof(structureLabelBuffer));
+		case isobus::task_controller_object::ObjectTypes::Device:
+		{
+			auto object = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceObject>(newObject);
+			memset(softwareVersionBuffer, 0, sizeof(softwareVersionBuffer));
+			memset(serialNumberBuffer, 0, sizeof(serialNumberBuffer));
+			memset(structureLabelBuffer, 0, sizeof(structureLabelBuffer));
+			memset(hexIsoNameBuffer, 0, sizeof(hexIsoNameBuffer));
+			memset(extendedStructureLabelBuffer, 0, sizeof(extendedStructureLabelBuffer));
 
-		memcpy(softwareVersionBuffer, object->get_software_version().c_str(), object->get_software_version().length() <= 128 ? object->get_software_version().length() : 128);
-		memcpy(serialNumberBuffer, object->get_serial_number().c_str(), object->get_serial_number().length() <= 128 ? object->get_serial_number().length() : 128);
-		memcpy(structureLabelBuffer, object->get_structure_label().c_str(), object->get_structure_label().length() <= 128 ? object->get_structure_label().length() : 128);
+			memcpy(softwareVersionBuffer, object->get_software_version().c_str(), object->get_software_version().length() <= 128 ? object->get_software_version().length() : 128);
+			memcpy(serialNumberBuffer, object->get_serial_number().c_str(), object->get_serial_number().length() <= 128 ? object->get_serial_number().length() : 128);
+			memcpy(structureLabelBuffer, object->get_structure_label().c_str(), object->get_structure_label().length() <= 7 ? object->get_structure_label().length() : 7);
+			memcpy(extendedStructureLabelBuffer, object->get_extended_structure_label().data(), object->get_extended_structure_label().size() <= 128 ? object->get_extended_structure_label().size() : 128);
+
+			std::ostringstream hexStream;
+			hexStream << std::hex << object->get_iso_name();
+			std::string hexNAME = hexStream.str();
+
+			for (std::size_t i = 0; (i < sizeof(hexIsoNameBuffer) && i < hexNAME.length()); i++)
+			{
+				hexIsoNameBuffer[i] = hexNAME[i];
+			}
+
+			auto localization = object->get_localization_label();
+			languageCode.clear();
+			languageCode.push_back(localization.at(0));
+			languageCode.push_back(localization.at(1));
+			timeFormat = static_cast<isobus::LanguageCommandInterface::TimeFormats>((localization.at(2) >> 4) & 0x03);
+			decimalSymbol = static_cast<isobus::LanguageCommandInterface::DecimalSymbols>((localization.at(2) >> 6) & 0x03);
+			dateFormat = static_cast<isobus::LanguageCommandInterface::DateFormats>(localization.at(3));
+			massUnitSystem = static_cast<isobus::LanguageCommandInterface::MassUnits>(localization.at(4) & 0x03);
+			volumeUnitSystem = static_cast<isobus::LanguageCommandInterface::VolumeUnits>((localization.at(4) >> 2) & 0x03);
+			areaUnitSystem = static_cast<isobus::LanguageCommandInterface::AreaUnits>((localization.at(4) >> 4) & 0x03);
+			distanceUnitSystem = static_cast<isobus::LanguageCommandInterface::DistanceUnits>((localization.at(4) >> 6) & 0x03);
+			genericUnitSystem = static_cast<isobus::LanguageCommandInterface::UnitSystem>(localization.at(5) & 0x03);
+			forceUnitSystem = static_cast<isobus::LanguageCommandInterface::ForceUnits>((localization.at(5) >> 2) & 0x03);
+			pressureUnitSystem = static_cast<isobus::LanguageCommandInterface::PressureUnits>((localization.at(5) >> 4) & 0x03);
+			temperatureUnitSystem = static_cast<isobus::LanguageCommandInterface::TemperatureUnits>((localization.at(5) >> 6) & 0x03);
+		}
+		break;
+
+		case isobus::task_controller_object::ObjectTypes::DeviceElement:
+		{
+			auto object = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceElementObject>(newObject);
+			elementNumberBuffer = object->get_element_number();
+			parentObjectBuffer = object->get_parent_object();
+		}
+		break;
 	}
 }
 
@@ -974,5 +1148,127 @@ std::string DDOPGeneratorGUI::get_object_type_string(isobus::task_controller_obj
 		default:
 			break;
 	}
+	return retVal;
+}
+
+void DDOPGeneratorGUI::render_save()
+{
+	bool shouldShowSaveFailed = false;
+	bool shouldShowSaveSucceeded = false;
+	if (ImGui::BeginPopupModal("##Save As Modal", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+	{
+		ImGui::Text("Enter file name");
+		ImGui::Separator();
+
+		ImGui::InputText("File Name", filePathBuffer, IM_ARRAYSIZE(filePathBuffer));
+
+		ImGui::SetItemDefaultFocus();
+		if (ImGui::Button("Save", ImVec2(120, 0)))
+		{
+			ImGui::CloseCurrentPopup();
+
+			if ((nullptr != currentObjectPool) && currentPoolValid)
+			{
+				std::vector<std::uint8_t> binaryDDOP;
+				logger.logHistory.clear();
+				auto serializationSuccess = currentObjectPool->generate_binary_object_pool(binaryDDOP);
+
+				if (serializationSuccess)
+				{
+					auto fileName = std::string(filePathBuffer);
+
+					if (fileName.empty())
+					{
+						fileName = "device_descriptor_object_pool.iop";
+					}
+					std::ofstream outFile(fileName, std::ios_base::trunc | std::ios_base::binary);
+
+					if (outFile)
+					{
+						outFile.write(reinterpret_cast<char *>(binaryDDOP.data()), binaryDDOP.size());
+						shouldShowSaveSucceeded = true;
+					}
+					else
+					{
+						shouldShowSaveFailed = true;
+					}
+				}
+				else
+				{
+					shouldShowSaveFailed = true;
+				}
+			}
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Cancel", ImVec2(120, 0)))
+		{
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
+	}
+
+	if (shouldShowSaveFailed)
+	{
+		ImGui::OpenPopup("Save Failed");
+	}
+	else if (shouldShowSaveSucceeded)
+	{
+		ImGui::OpenPopup("Save Success");
+	}
+
+	if (ImGui::BeginPopupModal("Save Success", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+	{
+		ImGui::Text("File was saved.");
+
+		if (ImGui::Button("OK", ImVec2(120, 0)))
+		{
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
+	}
+
+	if (ImGui::BeginPopupModal("Save Failed", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+	{
+		ImGui::Text("File Saving Failed");
+		ImGui::Separator();
+		for (auto &logString : logger.logHistory)
+		{
+			ImGui::Text(logString.logText.c_str());
+		}
+
+		if (ImGui::Button("OK", ImVec2(120, 0)))
+		{
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
+	}
+}
+
+const std::array<std::uint8_t, 7> DDOPGeneratorGUI::generate_localization_label()
+{
+	std::array<std::uint8_t, 7> retVal = { 0 };
+
+	if (languageCode.size() >= 2)
+	{
+		retVal[0] = languageCode[0];
+		retVal[1] = languageCode[1];
+	}
+	else
+	{
+		retVal[0] = ' ';
+		retVal[1] = ' ';
+	}
+	retVal[2] = ((static_cast<std::uint8_t>(timeFormat) << 4) |
+	             (static_cast<std::uint8_t>(decimalSymbol) << 6));
+	retVal[3] = static_cast<std::uint8_t>(dateFormat);
+	retVal[4] = (static_cast<std::uint8_t>(massUnitSystem) |
+	             (static_cast<std::uint8_t>(volumeUnitSystem) << 2) |
+	             (static_cast<std::uint8_t>(areaUnitSystem) << 4) |
+	             (static_cast<std::uint8_t>(distanceUnitSystem) << 6));
+	retVal[5] = (static_cast<std::uint8_t>(genericUnitSystem) |
+	             (static_cast<std::uint8_t>(forceUnitSystem) << 2) |
+	             (static_cast<std::uint8_t>(pressureUnitSystem) << 4) |
+	             (static_cast<std::uint8_t>(temperatureUnitSystem) << 6));
+	retVal[6] = 0xFF;
 	return retVal;
 }
