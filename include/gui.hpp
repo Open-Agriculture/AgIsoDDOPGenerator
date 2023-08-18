@@ -23,6 +23,9 @@ public:
 
 	void start();
 
+private:
+	static constexpr std::size_t FILE_PATH_BUFFER_MAX_LENGTH = 1024;
+
 	bool render_menu_bar();
 	void render_open_file_menu();
 	void parseElementChildrenOfElement(std::uint16_t objectID);
@@ -33,18 +36,21 @@ public:
 	void render_device_process_data_settings(std::shared_ptr<isobus::task_controller_object::DeviceProcessDataObject> object);
 	void render_device_property_settings(std::shared_ptr<isobus::task_controller_object::DevicePropertyObject> object);
 	void render_device_presentation_settings(std::shared_ptr<isobus::task_controller_object::DeviceValuePresentationObject> object);
+	void render_object_components(std::shared_ptr<isobus::task_controller_object::Object> object);
 	void render_current_selected_object_settings(std::shared_ptr<isobus::task_controller_object::Object> object);
+	void render_device_element_components(std::shared_ptr<isobus::task_controller_object::DeviceElementObject> object);
+	void render_device_process_data_components(std::shared_ptr<isobus::task_controller_object::DeviceProcessDataObject> object);
+	void render_device_property_components(std::shared_ptr<isobus::task_controller_object::DevicePropertyObject> object);
+	void render_device_presentation_components(std::shared_ptr<isobus::task_controller_object::DeviceValuePresentationObject> object);
 	void render_save();
+	void render_all_objects();
 	void on_selected_object_changed(std::shared_ptr<isobus::task_controller_object::Object> newObject);
-
-private:
-	static constexpr std::size_t FILE_PATH_BUFFER_MAX_LENGTH = 1024;
-
 	static std::string get_element_type_string(isobus::task_controller_object::DeviceElementObject::Type type);
 	static std::string get_object_type_string(isobus::task_controller_object::ObjectTypes type);
 	const std::array<std::uint8_t, 7> generate_localization_label();
+	std::uint16_t get_first_unused_id() const;
 
-	std::string languageCode; ///< The last received language code, such as "en", "es", "de", etc.
+	std::string languageCode;
 	isobus::LanguageCommandInterface::DecimalSymbols decimalSymbol = isobus::LanguageCommandInterface::DecimalSymbols::Point;
 	isobus::LanguageCommandInterface::TimeFormats timeFormat = isobus::LanguageCommandInterface::TimeFormats::TwelveHourAmPm;
 	isobus::LanguageCommandInterface::DateFormats dateFormat = isobus::LanguageCommandInterface::DateFormats::mmddyyyy;
@@ -66,11 +72,24 @@ private:
 	char structureLabelBuffer[8] = { 0 };
 	char extendedStructureLabelBuffer[129] = { 0 };
 	char hexIsoNameBuffer[17] = { 0 };
+	char languageCodeBuffer[3] = { 0 };
 	std::string lastFileName;
 	int elementNumberBuffer = 0;
 	int parentObjectBuffer = 0;
+	int ddiBuffer = 0;
+	int objectIDBuffer = 0;
+	int presentationObjectBuffer = 0;
+	int valueBuffer = 0;
+	int numberDecimalsBuffer = 0;
+	int offsetBuffer = 0;
+	int versionIndex = 0;
+	int addChildComboIndex = 0;
+	float scaleBuffer = 0.0f;
 	std::uint16_t selectedObjectID = 0xFFFF;
+	std::array<bool, 8> propertiesBitfieldBuffer = { false };
+	std::array<bool, 8> triggerBitfieldBuffer = { false };
 	bool openFileDialogue = false;
+	bool saveModal = false;
 	bool saveAsModal = false;
 	bool currentPoolValid = false;
 };
