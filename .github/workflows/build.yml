@@ -1,0 +1,46 @@
+name: Build
+
+on: push
+
+jobs:
+  windows_build:
+    name: Windows Build
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - name: Compile
+        run: |
+          mkdir build
+          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DCAN_DRIVER=None -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: windows-executable
+          path: |         
+             build/Release/*.dll
+             build/Release/*.exe
+
+  ubuntu_build:
+    name: Ubuntu Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - name: Compile
+        run: |
+          mkdir build
+          sudo apt-get install -y libgl1-mesa-dev
+          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DCAN_DRIVER=None -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: linux-executable
+          path: |
+            build/AgIsoDDOPGenerator
