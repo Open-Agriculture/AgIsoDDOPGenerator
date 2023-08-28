@@ -24,12 +24,19 @@ This project is built with CMake.
 Make sure you have all the dependencies installed.
 
 ```
-sudo apt install cmake build-essential
+sudo apt install cmake build-essential libgl1-mesa-dev
+```
+
+Clone the repo:
+
+```
+git clone https://github.com/Open-Agriculture/AgIsoDDOPGenerator.git --recurse-submodules
 ```
 
 Then compile with CMake:
 
 ```
+cd AgIsoDDOPGenerator
 cmake -S . -B build
 cmake --build build
 ```
