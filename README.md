@@ -24,7 +24,7 @@ This project is built with CMake.
 Make sure you have all the dependencies installed.
 
 ```
-sudo apt install cmake build-essential libgl1-mesa-dev
+sudo apt install cmake build-essential libgl1-mesa-dev libxext-dev
 ```
 
 Clone the repo:
