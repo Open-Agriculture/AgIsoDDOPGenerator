@@ -58,6 +58,16 @@ namespace FileDialog
 	static bool file_dialog_open = false;
 	static FileDialogType file_dialog_open_type = FileDialogType::OpenFile;
 	static int versions_current_idx = 0;
+	static char dirSep = std::filesystem::path::preferred_separator;
+
+	static std::string getPathWithTrailingSeparator(const std::string &path)
+	{
+		std::string ret = path;
+		if (path.back() != dirSep) {
+			ret += std::filesystem::path::preferred_separator;
+		}
+		return ret;
+	}
 
 	void ShowFileDialog(bool *open, char *buffer, [[maybe_unused]] unsigned int buffer_size, FileDialogType type = FileDialogType::OpenFile)
 	{
@@ -306,7 +316,7 @@ namespace FileDialog
 				file_dialog_current_path = std::filesystem::current_path().string();
 			}
 
-			std::string selected_file_path = file_dialog_current_path + (file_dialog_current_path.back() == '\\' ? "" : "\\") + (file_dialog_current_folder.size() > 0 ? file_dialog_current_folder : file_dialog_current_file);
+			std::string selected_file_path = getPathWithTrailingSeparator(file_dialog_current_path) + (file_dialog_current_folder.size() > 0 ? file_dialog_current_folder : file_dialog_current_file);
 			char *buf = &selected_file_path[0];
 			ImGui::PushItemWidth(724);
 			ImGui::InputText("##text", buf, sizeof(buf), ImGuiInputTextFlags_ReadOnly);
@@ -335,7 +345,7 @@ namespace FileDialog
 					}
 					else
 					{
-						std::string new_file_path = file_dialog_current_path + (file_dialog_current_path.back() == '\\' ? "" : "\\") + new_folder_name;
+						std::string new_file_path = getPathWithTrailingSeparator(file_dialog_current_path) + new_folder_name;
 						std::filesystem::create_directory(new_file_path);
 						ImGui::CloseCurrentPopup();
 					}
@@ -360,7 +370,7 @@ namespace FileDialog
 				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 6);
 				if (ImGui::Button("Yes"))
 				{
-					std::filesystem::remove(file_dialog_current_path + (file_dialog_current_path.back() == '\\' ? "" : "\\") + file_dialog_current_folder);
+					std::filesystem::remove(getPathWithTrailingSeparator(file_dialog_current_path) + file_dialog_current_folder);
 					ImGui::CloseCurrentPopup();
 				}
 				ImGui::SameLine();
@@ -414,7 +424,7 @@ namespace FileDialog
 					}
 					else
 					{
-						auto path = file_dialog_current_path + (file_dialog_current_path.back() == '\\' ? "" : "\\") + file_dialog_current_file;
+						auto path = getPathWithTrailingSeparator(file_dialog_current_path) + file_dialog_current_file;
 						strncpy(buffer, path.c_str(), sizeof(buffer));
 						strncpy(file_dialog_error, "", sizeof(file_dialog_error));
 						reset_everything();
@@ -428,7 +438,7 @@ namespace FileDialog
 					}
 					else
 					{
-						auto path = file_dialog_current_path + (file_dialog_current_path.back() == '\\' ? "" : "\\") + file_dialog_current_file;
+						auto path = getPathWithTrailingSeparator(file_dialog_current_path) + file_dialog_current_file;
 						strncpy(buffer, path.c_str(), buffer_size);
 						strncpy(file_dialog_error, "", sizeof(file_dialog_error));
 						reset_everything();
