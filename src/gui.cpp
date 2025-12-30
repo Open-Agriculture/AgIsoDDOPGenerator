@@ -1811,12 +1811,18 @@ std::string DDOPGeneratorGUI::get_object_display_name(std::shared_ptr<isobus::ta
 		if (object->get_object_type() == isobus::task_controller_object::ObjectTypes::DeviceProcessData)
 		{
 			auto dpd = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceProcessDataObject>(object);
-			ddi = dpd->get_ddi();
+			if (nullptr != dpd)
+			{
+				ddi = dpd->get_ddi();
+			}
 		}
 		else if (object->get_object_type() == isobus::task_controller_object::ObjectTypes::DeviceProperty)
 		{
 			auto dpt = std::dynamic_pointer_cast<isobus::task_controller_object::DevicePropertyObject>(object);
-			ddi = dpt->get_ddi();
+			if (nullptr != dpt)
+			{
+				ddi = dpt->get_ddi();
+			}
 		}
 		
 		if (ddi != 0)
@@ -1995,7 +2001,7 @@ void DDOPGeneratorGUI::render_all_objects()
 					base_flags |= ImGuiTreeNodeFlags_Selected;
 				}
 
-				bool isOpen = ImGui::TreeNodeEx((get_object_display_name(currentObject) + "(" + currentObject->get_table_id() + " " + std::to_string(currentObject->get_object_id()) + ")").c_str(), base_flags);
+				bool isOpen = ImGui::TreeNodeEx((get_object_display_name(currentObject) + " (" + currentObject->get_table_id() + " " + std::to_string(currentObject->get_object_id()) + ")").c_str(), base_flags);
 
 				if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
 				{
