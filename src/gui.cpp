@@ -14,6 +14,7 @@
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_sdl2.h"
 #include "isobus/utility/iop_file_interface.hpp"
+#include "isobus/isobus/isobus_data_dictionary.hpp"
 #include "logsink.hpp"
 
 #include <cstdio>
@@ -1414,7 +1415,7 @@ void DDOPGeneratorGUI::render_device_element_components(std::shared_ptr<isobus::
 
 void DDOPGeneratorGUI::render_device_process_data_components(std::shared_ptr<isobus::task_controller_object::DeviceProcessDataObject> object)
 {
-	ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "DDI: %u", object->get_ddi());
+	ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "DDI: %u (%s)", object->get_ddi(), isobus::DataDictionary::get_entry(object->get_ddi()).name.c_str());
 
 	bool areAnyTriggers = false;
 	ImGui::Text("Triggers:");
