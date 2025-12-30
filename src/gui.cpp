@@ -1813,7 +1813,7 @@ std::string DDOPGeneratorGUI::get_object_display_name(std::shared_ptr<isobus::ta
 		if (objectType == isobus::task_controller_object::ObjectTypes::DeviceProcessData)
 		{
 			auto dpd = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceProcessDataObject>(object);
-			if (nullptr != dpd)
+			if (dpd != nullptr)
 			{
 				ddi = dpd->get_ddi();
 			}
@@ -1821,7 +1821,7 @@ std::string DDOPGeneratorGUI::get_object_display_name(std::shared_ptr<isobus::ta
 		else // DeviceProperty
 		{
 			auto dpt = std::dynamic_pointer_cast<isobus::task_controller_object::DevicePropertyObject>(object);
-			if (nullptr != dpt)
+			if (dpt != nullptr)
 			{
 				ddi = dpt->get_ddi();
 			}
@@ -1829,13 +1829,7 @@ std::string DDOPGeneratorGUI::get_object_display_name(std::shared_ptr<isobus::ta
 		
 		if (ddi != 0)
 		{
-			const std::string ddiName = isobus::DataDictionary::get_entry(ddi).name;
-			static const std::string UNKNOWN_DDI = "Unknown";
-			// Only use the DDI name if it's not "Unknown"
-			if (!ddiName.empty() && ddiName != UNKNOWN_DDI)
-			{
-				displayName = ddiName;
-			}
+			displayName = isobus::DataDictionary::get_entry(ddi).name;
 		}
 	}
 	
