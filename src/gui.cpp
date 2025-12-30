@@ -1561,7 +1561,7 @@ void DDOPGeneratorGUI::render_device_process_data_components(std::shared_ptr<iso
 
 void DDOPGeneratorGUI::render_device_property_components(std::shared_ptr<isobus::task_controller_object::DevicePropertyObject> object)
 {
-	ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "DDI: %u", object->get_ddi());
+	ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "DDI: %u (%s)", object->get_ddi(), isobus::DataDictionary::get_entry(object->get_ddi()).name.c_str());
 	ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Value: %d", object->get_value());
 
 	// Try and get the presentation
