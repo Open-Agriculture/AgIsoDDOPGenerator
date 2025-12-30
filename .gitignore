@@ -50,3 +50,4 @@ Makefile
 
 # Doxygen
 *docs
+_codeql_detected_source_root
