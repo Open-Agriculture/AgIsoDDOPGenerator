@@ -563,7 +563,7 @@ void DDOPGeneratorGUI::parseElementChildrenOfElement(std::uint16_t aObjectID)
 			}
 
 			ImGui::Indent();
-			bool isElementOpen = ImGui::TreeNodeEx((currentElement->get_designator() + " (" + currentElement->get_table_id() + " " + std::to_string(currentElement->get_object_id()) + ")").c_str(), rootElementFlags);
+			bool isElementOpen = ImGui::TreeNodeEx((get_object_display_name(currentElement) + " (" + currentElement->get_table_id() + " " + std::to_string(currentElement->get_object_id()) + ")").c_str(), rootElementFlags);
 			ImGui::Unindent();
 
 			if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
@@ -1808,7 +1808,7 @@ std::string DDOPGeneratorGUI::get_object_display_name(std::shared_ptr<isobus::ta
 		return displayName;
 	}
 	
-	// If designator is empty or default, use DDI name for DPD and DPT objects
+	// If designator is empty or default, use appropriate fallback based on object type
 	const auto objectType = object->get_object_type();
 	
 	if (objectType == isobus::task_controller_object::ObjectTypes::DeviceProcessData)
@@ -1825,6 +1825,14 @@ std::string DDOPGeneratorGUI::get_object_display_name(std::shared_ptr<isobus::ta
 		if (dpt != nullptr)
 		{
 			displayName = isobus::DataDictionary::get_entry(dpt->get_ddi()).name;
+		}
+	}
+	else if (objectType == isobus::task_controller_object::ObjectTypes::DeviceElement)
+	{
+		auto det = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceElementObject>(object);
+		if (det != nullptr)
+		{
+			displayName = get_element_type_string(det->get_type()) + " " + std::to_string(det->get_element_number());
 		}
 	}
 	
