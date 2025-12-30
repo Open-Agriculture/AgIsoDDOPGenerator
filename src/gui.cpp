@@ -606,7 +606,7 @@ void DDOPGeneratorGUI::parseChildren(std::shared_ptr<isobus::task_controller_obj
 			if (currentChild->get_object_type() != isobus::task_controller_object::ObjectTypes::DeviceElement)
 			{
 				ImGui::Indent();
-				isChildOpen = ImGui::TreeNodeEx((currentChild->get_designator() + " (" + currentChild->get_table_id() + " " + std::to_string(currentChild->get_object_id()) + ")").c_str(), childFlags);
+				isChildOpen = ImGui::TreeNodeEx((get_object_display_name(currentChild) + " (" + currentChild->get_table_id() + " " + std::to_string(currentChild->get_object_id()) + ")").c_str(), childFlags);
 				ImGui::Unindent();
 
 				if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
@@ -1798,6 +1798,36 @@ std::string DDOPGeneratorGUI::get_object_type_string(isobus::task_controller_obj
 	return retVal;
 }
 
+std::string DDOPGeneratorGUI::get_object_display_name(std::shared_ptr<isobus::task_controller_object::Object> object)
+{
+	std::string displayName = object->get_designator();
+	
+	// If designator is empty or is the default "Designator" text, use DDI name for DPD and DPT objects
+	if ((displayName.empty() || displayName == "Designator") &&
+	    ((object->get_object_type() == isobus::task_controller_object::ObjectTypes::DeviceProcessData) ||
+	     (object->get_object_type() == isobus::task_controller_object::ObjectTypes::DeviceProperty)))
+	{
+		std::uint16_t ddi = 0;
+		if (object->get_object_type() == isobus::task_controller_object::ObjectTypes::DeviceProcessData)
+		{
+			auto dpd = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceProcessDataObject>(object);
+			ddi = dpd->get_ddi();
+		}
+		else if (object->get_object_type() == isobus::task_controller_object::ObjectTypes::DeviceProperty)
+		{
+			auto dpt = std::dynamic_pointer_cast<isobus::task_controller_object::DevicePropertyObject>(object);
+			ddi = dpt->get_ddi();
+		}
+		
+		if (ddi != 0)
+		{
+			displayName = isobus::DataDictionary::get_entry(ddi).name;
+		}
+	}
+	
+	return displayName;
+}
+
 void DDOPGeneratorGUI::render_save()
 {
 	bool shouldShowSaveFailed = false;
@@ -1965,7 +1995,7 @@ void DDOPGeneratorGUI::render_all_objects()
 					base_flags |= ImGuiTreeNodeFlags_Selected;
 				}
 
-				bool isOpen = ImGui::TreeNodeEx((currentObject->get_designator() + "(" + currentObject->get_table_id() + " " + std::to_string(currentObject->get_object_id()) + ")").c_str(), base_flags);
+				bool isOpen = ImGui::TreeNodeEx((get_object_display_name(currentObject) + "(" + currentObject->get_table_id() + " " + std::to_string(currentObject->get_object_id()) + ")").c_str(), base_flags);
 
 				if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
 				{
