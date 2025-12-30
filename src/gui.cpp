@@ -1827,7 +1827,12 @@ std::string DDOPGeneratorGUI::get_object_display_name(std::shared_ptr<isobus::ta
 		
 		if (ddi != 0)
 		{
-			displayName = isobus::DataDictionary::get_entry(ddi).name;
+			std::string ddiName = isobus::DataDictionary::get_entry(ddi).name;
+			// Only use the DDI name if it's not "Unknown"
+			if (!ddiName.empty() && ddiName != "Unknown")
+			{
+				displayName = ddiName;
+			}
 		}
 	}
 	
