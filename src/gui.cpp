@@ -1803,12 +1803,14 @@ std::string DDOPGeneratorGUI::get_object_display_name(std::shared_ptr<isobus::ta
 	std::string displayName = object->get_designator();
 	
 	// If designator is empty or is the default "Designator" text, use DDI name for DPD and DPT objects
-	if ((displayName.empty() || displayName == "Designator") &&
-	    ((object->get_object_type() == isobus::task_controller_object::ObjectTypes::DeviceProcessData) ||
-	     (object->get_object_type() == isobus::task_controller_object::ObjectTypes::DeviceProperty)))
+	const auto objectType = object->get_object_type();
+	const bool isDPDorDPT = (objectType == isobus::task_controller_object::ObjectTypes::DeviceProcessData) ||
+	                        (objectType == isobus::task_controller_object::ObjectTypes::DeviceProperty);
+	
+	if ((displayName.empty() || displayName == "Designator") && isDPDorDPT)
 	{
 		std::uint16_t ddi = 0;
-		if (object->get_object_type() == isobus::task_controller_object::ObjectTypes::DeviceProcessData)
+		if (objectType == isobus::task_controller_object::ObjectTypes::DeviceProcessData)
 		{
 			auto dpd = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceProcessDataObject>(object);
 			if (nullptr != dpd)
@@ -1816,7 +1818,7 @@ std::string DDOPGeneratorGUI::get_object_display_name(std::shared_ptr<isobus::ta
 				ddi = dpd->get_ddi();
 			}
 		}
-		else if (object->get_object_type() == isobus::task_controller_object::ObjectTypes::DeviceProperty)
+		else // DeviceProperty
 		{
 			auto dpt = std::dynamic_pointer_cast<isobus::task_controller_object::DevicePropertyObject>(object);
 			if (nullptr != dpt)
@@ -1827,9 +1829,10 @@ std::string DDOPGeneratorGUI::get_object_display_name(std::shared_ptr<isobus::ta
 		
 		if (ddi != 0)
 		{
-			std::string ddiName = isobus::DataDictionary::get_entry(ddi).name;
+			const std::string ddiName = isobus::DataDictionary::get_entry(ddi).name;
+			static const std::string UNKNOWN_DDI = "Unknown";
 			// Only use the DDI name if it's not "Unknown"
-			if (!ddiName.empty() && ddiName != "Unknown")
+			if (!ddiName.empty() && ddiName != UNKNOWN_DDI)
 			{
 				displayName = ddiName;
 			}
