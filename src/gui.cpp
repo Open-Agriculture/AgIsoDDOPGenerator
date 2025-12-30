@@ -1802,34 +1802,29 @@ std::string DDOPGeneratorGUI::get_object_display_name(std::shared_ptr<isobus::ta
 {
 	std::string displayName = object->get_designator();
 	
-	// If designator is empty or is the default "Designator" text, use DDI name for DPD and DPT objects
-	const auto objectType = object->get_object_type();
-	const bool isDPDorDPT = (objectType == isobus::task_controller_object::ObjectTypes::DeviceProcessData) ||
-	                        (objectType == isobus::task_controller_object::ObjectTypes::DeviceProperty);
-	
-	if ((displayName.empty() || displayName == "Designator") && isDPDorDPT)
+	// Early return if designator is not empty and not the default "Designator" text
+	if (!displayName.empty() && displayName != "Designator")
 	{
-		std::uint16_t ddi = 0;
-		if (objectType == isobus::task_controller_object::ObjectTypes::DeviceProcessData)
+		return displayName;
+	}
+	
+	// If designator is empty or default, use DDI name for DPD and DPT objects
+	const auto objectType = object->get_object_type();
+	
+	if (objectType == isobus::task_controller_object::ObjectTypes::DeviceProcessData)
+	{
+		auto dpd = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceProcessDataObject>(object);
+		if (dpd != nullptr)
 		{
-			auto dpd = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceProcessDataObject>(object);
-			if (dpd != nullptr)
-			{
-				ddi = dpd->get_ddi();
-			}
+			displayName = isobus::DataDictionary::get_entry(dpd->get_ddi()).name;
 		}
-		else // DeviceProperty
+	}
+	else if (objectType == isobus::task_controller_object::ObjectTypes::DeviceProperty)
+	{
+		auto dpt = std::dynamic_pointer_cast<isobus::task_controller_object::DevicePropertyObject>(object);
+		if (dpt != nullptr)
 		{
-			auto dpt = std::dynamic_pointer_cast<isobus::task_controller_object::DevicePropertyObject>(object);
-			if (dpt != nullptr)
-			{
-				ddi = dpt->get_ddi();
-			}
-		}
-		
-		if (ddi != 0)
-		{
-			displayName = isobus::DataDictionary::get_entry(ddi).name;
+			displayName = isobus::DataDictionary::get_entry(dpt->get_ddi()).name;
 		}
 	}
 	
