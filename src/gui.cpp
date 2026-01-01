@@ -563,7 +563,7 @@ void DDOPGeneratorGUI::parseElementChildrenOfElement(std::uint16_t aObjectID)
 			}
 
 			ImGui::Indent();
-			bool isElementOpen = ImGui::TreeNodeEx((currentElement->get_designator() + " (" + currentElement->get_table_id() + " " + std::to_string(currentElement->get_object_id()) + ")").c_str(), rootElementFlags);
+			bool isElementOpen = ImGui::TreeNodeEx((get_object_display_name(currentElement) + " (" + currentElement->get_table_id() + " " + std::to_string(currentElement->get_object_id()) + ")").c_str(), rootElementFlags);
 			ImGui::Unindent();
 
 			if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
@@ -606,7 +606,7 @@ void DDOPGeneratorGUI::parseChildren(std::shared_ptr<isobus::task_controller_obj
 			if (currentChild->get_object_type() != isobus::task_controller_object::ObjectTypes::DeviceElement)
 			{
 				ImGui::Indent();
-				isChildOpen = ImGui::TreeNodeEx((currentChild->get_designator() + " (" + currentChild->get_table_id() + " " + std::to_string(currentChild->get_object_id()) + ")").c_str(), childFlags);
+				isChildOpen = ImGui::TreeNodeEx((get_object_display_name(currentChild) + " (" + currentChild->get_table_id() + " " + std::to_string(currentChild->get_object_id()) + ")").c_str(), childFlags);
 				ImGui::Unindent();
 
 				if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
@@ -1561,7 +1561,7 @@ void DDOPGeneratorGUI::render_device_process_data_components(std::shared_ptr<iso
 
 void DDOPGeneratorGUI::render_device_property_components(std::shared_ptr<isobus::task_controller_object::DevicePropertyObject> object)
 {
-	ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "DDI: %u", object->get_ddi());
+	ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "DDI: %u (%s)", object->get_ddi(), isobus::DataDictionary::get_entry(object->get_ddi()).name.c_str());
 	ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Value: %d", object->get_value());
 
 	// Try and get the presentation
@@ -1798,6 +1798,47 @@ std::string DDOPGeneratorGUI::get_object_type_string(isobus::task_controller_obj
 	return retVal;
 }
 
+std::string DDOPGeneratorGUI::get_object_display_name(std::shared_ptr<isobus::task_controller_object::Object> object)
+{
+	std::string displayName = object->get_designator();
+	
+	// Early return if designator is not empty and not the default "Designator" text
+	if (!displayName.empty() && displayName != "Designator")
+	{
+		return displayName;
+	}
+	
+	// If designator is empty or default, use appropriate fallback based on object type
+	const auto objectType = object->get_object_type();
+	
+	if (objectType == isobus::task_controller_object::ObjectTypes::DeviceProcessData)
+	{
+		auto dpd = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceProcessDataObject>(object);
+		if (dpd != nullptr)
+		{
+			displayName = isobus::DataDictionary::get_entry(dpd->get_ddi()).name;
+		}
+	}
+	else if (objectType == isobus::task_controller_object::ObjectTypes::DeviceProperty)
+	{
+		auto dpt = std::dynamic_pointer_cast<isobus::task_controller_object::DevicePropertyObject>(object);
+		if (dpt != nullptr)
+		{
+			displayName = isobus::DataDictionary::get_entry(dpt->get_ddi()).name;
+		}
+	}
+	else if (objectType == isobus::task_controller_object::ObjectTypes::DeviceElement)
+	{
+		auto det = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceElementObject>(object);
+		if (det != nullptr)
+		{
+			displayName = get_element_type_string(det->get_type()) + " " + std::to_string(det->get_element_number());
+		}
+	}
+	
+	return displayName;
+}
+
 void DDOPGeneratorGUI::render_save()
 {
 	bool shouldShowSaveFailed = false;
@@ -1965,7 +2006,7 @@ void DDOPGeneratorGUI::render_all_objects()
 					base_flags |= ImGuiTreeNodeFlags_Selected;
 				}
 
-				bool isOpen = ImGui::TreeNodeEx((currentObject->get_designator() + "(" + currentObject->get_table_id() + " " + std::to_string(currentObject->get_object_id()) + ")").c_str(), base_flags);
+				bool isOpen = ImGui::TreeNodeEx((get_object_display_name(currentObject) + " (" + currentObject->get_table_id() + " " + std::to_string(currentObject->get_object_id()) + ")").c_str(), base_flags);
 
 				if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
 				{

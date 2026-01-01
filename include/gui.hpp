@@ -47,6 +47,7 @@ private:
 	void on_selected_object_changed(std::shared_ptr<isobus::task_controller_object::Object> newObject);
 	static std::string get_element_type_string(isobus::task_controller_object::DeviceElementObject::Type type);
 	static std::string get_object_type_string(isobus::task_controller_object::ObjectTypes type);
+	static std::string get_object_display_name(std::shared_ptr<isobus::task_controller_object::Object> object);
 	const std::array<std::uint8_t, 7> generate_localization_label();
 	std::uint16_t get_first_unused_id() const;
 
