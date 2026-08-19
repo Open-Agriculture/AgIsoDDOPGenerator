@@ -261,6 +261,7 @@ bool DDOPGeneratorGUI::render_menu_bar()
 			{
 				shouldShowNewDDOP = true;
 
+				lastFileName.clear();
 				currentObjectPool.reset();
 				currentPoolValid = false;
 				currentObjectPool = std::make_unique<isobus::DeviceDescriptorObjectPool>();
@@ -286,7 +287,16 @@ bool DDOPGeneratorGUI::render_menu_bar()
 			if (ImGui::MenuItem("Save", "Overwrite current DDOP file"))
 			{
 				FileDialog::file_dialog_open = false;
-				saveModal = true;
+
+				if (lastFileName.empty())
+				{
+					saveAsModal = true;
+					memset(filePathBuffer, 0, IM_ARRAYSIZE(filePathBuffer));
+				}
+				else
+				{
+					saveModal = true;
+				}
 			}
 			if (ImGui::MenuItem("Save as", "Save current DDOP to a file"))
 			{
@@ -296,6 +306,7 @@ bool DDOPGeneratorGUI::render_menu_bar()
 			}
 			if (ImGui::MenuItem("Close", "Closes the active file"))
 			{
+				lastFileName.clear();
 				currentObjectPool.reset();
 				currentPoolValid = false;
 			}
@@ -480,7 +491,6 @@ void DDOPGeneratorGUI::render_open_file_menu()
 	else if (openFileDialogue)
 	{
 		std::string selectedFileToRead(filePathBuffer);
-		lastFileName = selectedFileToRead;
 		memset(filePathBuffer, 0, FILE_PATH_BUFFER_MAX_LENGTH);
 		openFileDialogue = false;
 
@@ -508,10 +518,12 @@ void DDOPGeneratorGUI::render_open_file_menu()
 				{
 					// Valid pool?
 					currentPoolValid = true;
+					lastFileName = selectedFileToRead;
 				}
 				else
 				{
 					currentObjectPool.reset();
+					currentPoolValid = false;
 
 					ImGui::OpenPopup("Error Loading DDOP");
 				}
@@ -1845,7 +1857,7 @@ void DDOPGeneratorGUI::render_save()
 	bool shouldShowSaveSucceeded = false;
 	if (ImGui::BeginPopupModal("##Save Modal", NULL, ImGuiWindowFlags_AlwaysAutoResize))
 	{
-		ImGui::Text("Are you sure you want to overwrite your DDOP file?");
+		ImGui::Text("Are you sure you want to overwrite %s?", lastFileName.c_str());
 		ImGui::Separator();
 		if (ImGui::Button("Save", ImVec2(120, 0)))
 		{
@@ -1926,6 +1938,7 @@ void DDOPGeneratorGUI::render_save()
 					if (outFile)
 					{
 						outFile.write(reinterpret_cast<char *>(binaryDDOP.data()), binaryDDOP.size());
+						lastFileName = fileName;
 						shouldShowSaveSucceeded = true;
 					}
 					else
