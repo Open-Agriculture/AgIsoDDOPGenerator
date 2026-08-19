@@ -1895,24 +1895,17 @@ void DDOPGeneratorGUI::render_save()
 	}
 	if (ImGui::BeginPopupModal("##Save As Modal", NULL, ImGuiWindowFlags_AlwaysAutoResize))
 	{
+		if (ImGui::IsWindowAppearing() && (nullptr != currentObjectPool))
+		{
+			versionIndex = (4 == currentObjectPool->get_task_controller_compatibility_level()) ? 1 : 0;
+		}
+
 		ImGui::Text("Enter file name");
 		ImGui::Separator();
 
 		ImGui::InputText("File Name", filePathBuffer, IM_ARRAYSIZE(filePathBuffer));
 		const char *versions[] = { "Version 3", "Version 4" };
 		ImGui::ListBox("TC Version", &versionIndex, versions, IM_ARRAYSIZE(versions), 2);
-
-		if (nullptr != currentObjectPool)
-		{
-			if (0 == versionIndex)
-			{
-				currentObjectPool->set_task_controller_compatibility_level(3);
-			}
-			else
-			{
-				currentObjectPool->set_task_controller_compatibility_level(4);
-			}
-		}
 
 		ImGui::SetItemDefaultFocus();
 		if (ImGui::Button("Save", ImVec2(120, 0)))
@@ -1921,6 +1914,15 @@ void DDOPGeneratorGUI::render_save()
 
 			if ((nullptr != currentObjectPool) && currentPoolValid)
 			{
+				if (0 == versionIndex)
+				{
+					currentObjectPool->set_task_controller_compatibility_level(3);
+				}
+				else
+				{
+					currentObjectPool->set_task_controller_compatibility_level(4);
+				}
+
 				std::vector<std::uint8_t> binaryDDOP;
 				logger.logHistory.clear();
 				auto serializationSuccess = currentObjectPool->generate_binary_object_pool(binaryDDOP);
