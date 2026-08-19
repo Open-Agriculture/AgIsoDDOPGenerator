@@ -870,9 +870,9 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 	ImGui::InputText("Extended Structure Label", extendedStructureLabelBuffer, IM_ARRAYSIZE(extendedStructureLabelBuffer));
 
 	auto extendedStructureLabel = std::string(extendedStructureLabelBuffer);
-	if (extendedStructureLabel != object->get_structure_label())
+	std::vector<std::uint8_t> convertedLabel(extendedStructureLabel.begin(), extendedStructureLabel.end());
+	if (convertedLabel != object->get_extended_structure_label())
 	{
-		std::vector<std::uint8_t> convertedLabel(extendedStructureLabel.begin(), extendedStructureLabel.end());
 		object->set_extended_structure_label(convertedLabel);
 	}
 
@@ -1638,7 +1638,7 @@ void DDOPGeneratorGUI::on_selected_object_changed(std::shared_ptr<isobus::task_c
 			memcpy(softwareVersionBuffer, object->get_software_version().c_str(), object->get_software_version().length() <= 128 ? object->get_software_version().length() : 128);
 			memcpy(serialNumberBuffer, object->get_serial_number().c_str(), object->get_serial_number().length() <= 128 ? object->get_serial_number().length() : 128);
 			memcpy(structureLabelBuffer, object->get_structure_label().c_str(), object->get_structure_label().length() <= 7 ? object->get_structure_label().length() : 7);
-			memcpy(extendedStructureLabelBuffer, object->get_extended_structure_label().data(), object->get_extended_structure_label().size() <= 128 ? object->get_extended_structure_label().size() : 128);
+			memcpy(extendedStructureLabelBuffer, object->get_extended_structure_label().data(), object->get_extended_structure_label().size() <= isobus::task_controller_object::DeviceObject::MAX_EXTENDED_STRUCTURE_LABEL_LENGTH ? object->get_extended_structure_label().size() : isobus::task_controller_object::DeviceObject::MAX_EXTENDED_STRUCTURE_LABEL_LENGTH);
 
 			std::ostringstream hexStream;
 			hexStream << std::hex << object->get_iso_name();
