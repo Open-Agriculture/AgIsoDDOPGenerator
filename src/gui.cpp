@@ -17,7 +17,9 @@
 #include "isobus/isobus/isobus_data_dictionary.hpp"
 #include "logsink.hpp"
 
+#include <cerrno>
 #include <cstdio>
+#include <cstring>
 #include <fstream>
 #include <sstream>
 
@@ -146,6 +148,12 @@ void DDOPGeneratorGUI::start()
 		if ((saveModal != prevSaveModalState))
 		{
 			ImGui::OpenPopup("##Save Modal");
+		}
+
+		if (exportModal)
+		{
+			ImGui::OpenPopup("##Export Modal");
+			exportModal = false;
 		}
 
 		render_save();
@@ -302,6 +310,12 @@ bool DDOPGeneratorGUI::render_menu_bar()
 			{
 				FileDialog::file_dialog_open = false;
 				saveAsModal = true;
+				memset(filePathBuffer, 0, IM_ARRAYSIZE(filePathBuffer));
+			}
+			if (ImGui::MenuItem("Export as ISOXML", "Export current DDOP to an ISOXML TASKDATA.XML file"))
+			{
+				FileDialog::file_dialog_open = false;
+				exportModal = true;
 				memset(filePathBuffer, 0, IM_ARRAYSIZE(filePathBuffer));
 			}
 			if (ImGui::MenuItem("Close", "Closes the active file"))
@@ -1959,6 +1973,54 @@ void DDOPGeneratorGUI::render_save()
 		{
 			ImGui::CloseCurrentPopup();
 			saveAsModal = false;
+		}
+		ImGui::EndPopup();
+	}
+
+	if (ImGui::BeginPopupModal("##Export Modal", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+	{
+		ImGui::Text("Enter file name");
+		ImGui::Separator();
+
+		ImGui::InputText("File Name", filePathBuffer, IM_ARRAYSIZE(filePathBuffer));
+
+		ImGui::SetItemDefaultFocus();
+		if (ImGui::Button("Export", ImVec2(120, 0)))
+		{
+			ImGui::CloseCurrentPopup();
+
+			if ((nullptr != currentObjectPool) && currentPoolValid)
+			{
+				std::string taskDataXML;
+				logger.logHistory.clear();
+
+				if (currentObjectPool->generate_task_data_iso_xml(taskDataXML))
+				{
+					const char *fileName = (0 == filePathBuffer[0]) ? "TASKDATA.XML" : filePathBuffer;
+
+					errno = 0;
+					std::ofstream outFile(fileName, std::ios_base::trunc);
+					outFile << taskDataXML;
+					outFile.close();
+
+					shouldShowSaveSucceeded = outFile.good();
+					shouldShowSaveFailed = !outFile.good();
+
+					if (shouldShowSaveFailed)
+					{
+						LOG_ERROR("[DDOP]: Could not write \"%s\": %s", fileName, (0 != errno) ? std::strerror(errno) : "unknown error");
+					}
+				}
+				else
+				{
+					shouldShowSaveFailed = true;
+				}
+			}
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Cancel", ImVec2(120, 0)))
+		{
+			ImGui::CloseCurrentPopup();
 		}
 		ImGui::EndPopup();
 	}
