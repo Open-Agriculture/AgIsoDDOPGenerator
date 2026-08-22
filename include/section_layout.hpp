@@ -1,7 +1,7 @@
 //================================================================================================
 /// @file section_layout.hpp
 ///
-/// @brief Defines a lateral section layout from the loaded DDOP
+/// @brief Defines the boom and section layout drawn across the implement's lateral (Y) axis
 /// @author Sujan Dumaru
 ///
 /// @copyright 2026 The Open-Agriculture developers
@@ -13,7 +13,7 @@
 
 #include <cstdint>
 
-/// @brief Renders a lateral Y-axis view of the booms and sections described by a DDOP.
+/// @brief Renders the booms and sections described by a DDOP across the lateral (Y) axis.
 /// Draws to scale when the pool stores static offsets and positive widths; otherwise draws an
 /// evenly spaced schematic.
 /// @param[in] pool The object pool whose section layout is drawn

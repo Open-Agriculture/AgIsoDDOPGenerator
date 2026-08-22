@@ -1,7 +1,7 @@
 //================================================================================================
 /// @file section_layout.cpp
 ///
-/// @brief Draws a lateral section layout from the loaded DDOP
+/// @brief Draws the boom and section layout across the implement's lateral (Y) axis
 /// @author Sujan Dumaru
 ///
 /// @copyright 2026 The Open-Agriculture developers
@@ -48,6 +48,10 @@ constexpr float BAR_HEIGHT = 42.0f;
 constexpr float RULER_TOP = 92.0f;
 constexpr float MINIMUM_BAR_WIDTH = 2.0f;
 constexpr float MINIMUM_TICK_SPACING = 4.0f;
+constexpr float MINIMUM_LABEL_SPACING = 56.0f;
+constexpr float MINIMUM_LABEL_STEP_MM = 100.0f;
+constexpr int MAXIMUM_LABEL_STEPS = 60;
+constexpr float KILOMETRE_MM = 1000000.0f;
 constexpr ImU32 SELECTED_BORDER_COLOR = IM_COL32(96, 205, 255, 255);
 constexpr ImU32 OVERLAP_FILL_COLOR = IM_COL32(210, 62, 62, 132);
 constexpr ImU32 OVERLAP_BORDER_COLOR = IM_COL32(245, 92, 82, 255);
@@ -351,16 +355,30 @@ static bool draw_sections(const std::vector<FlatSection> &sections, bool toScale
 		                  ImVec2((origin.x + canvasWidth) - CANVAS_PADDING, rulerY),
 		                  ImGui::GetColorU32(ImGuiCol_TextDisabled));
 
-		// Nothing bounds the widths a DDOP may carry, so a boom kilometres wide would otherwise
-		// spend a tick per metre drawing an unreadable smear.
-		if (MINIMUM_TICK_SPACING < (1000.0f * scale))
-		{
-			const int lastMetre = static_cast<int>(std::floor(maximum_mm / 1000.0f));
+		// A DDOP may describe anything from a hand boom to an implement kilometres wide, so a
+		// fixed step leaves the small pools with a lone zero and smears the large ones. Grow
+		// through 0.1, 0.2, 0.5, 1, 2, 5 m and so on until the labels are far enough to read.
+		float labelStep_mm = MINIMUM_LABEL_STEP_MM;
 
-			for (int metre = static_cast<int>(std::ceil(minimum_mm / 1000.0f)); metre <= lastMetre; metre++)
+		for (int i = 0; (i < MAXIMUM_LABEL_STEPS) && ((labelStep_mm * scale) < MINIMUM_LABEL_SPACING); i++)
+		{
+			labelStep_mm *= ((1 == (i % 3)) ? 2.5f : 2.0f);
+		}
+
+		const float tickStep_mm = labelStep_mm / 5.0f;
+		const bool inKilometres = (KILOMETRE_MM <= labelStep_mm);
+		const float labelDivisor = inKilometres ? KILOMETRE_MM : 1000.0f;
+		const char *labelUnit = inKilometres ? "km" : "m";
+
+		// A degenerate canvas leaves the scale at or below zero, which no step can satisfy.
+		if (MINIMUM_TICK_SPACING < (tickStep_mm * scale))
+		{
+			const int lastTick = static_cast<int>(std::floor(maximum_mm / tickStep_mm));
+
+			for (int tick = static_cast<int>(std::ceil(minimum_mm / tickStep_mm)); tick <= lastTick; tick++)
 			{
-				const bool isLabelled = (0 == (metre % 5));
-				const float tickX = toX(metre * 1000.0f);
+				const bool isLabelled = (0 == (tick % 5));
+				const float tickX = toX(tick * tickStep_mm);
 
 				drawList->AddLine(ImVec2(tickX, rulerY),
 				                  ImVec2(tickX, rulerY + (isLabelled ? 8.0f : 4.0f)),
@@ -369,7 +387,7 @@ static bool draw_sections(const std::vector<FlatSection> &sections, bool toScale
 				if (isLabelled)
 				{
 					char label[16] = { 0 };
-					std::snprintf(label, sizeof(label), "%d", metre);
+					std::snprintf(label, sizeof(label), "%g %s", (tick * tickStep_mm) / labelDivisor, labelUnit);
 					const ImVec2 labelSize = ImGui::CalcTextSize(label);
 					drawList->AddText(ImVec2(tickX - (labelSize.x / 2.0f), rulerY + 9.0f), ImGui::GetColorU32(ImGuiCol_TextDisabled), label);
 				}
@@ -462,7 +480,7 @@ static bool render_boom(isobus::DeviceDescriptorObjectPool &pool,
 		});
 	}
 
-	ImGui::TextUnformatted("Lateral view - Y axis only");
+	ImGui::TextUnformatted("Rear view - lateral (Y) axis only");
 
 	if (hasInvalidWidth)
 	{
