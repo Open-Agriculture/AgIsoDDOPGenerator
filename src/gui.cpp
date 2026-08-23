@@ -765,7 +765,7 @@ void DDOPGeneratorGUI::render_object_tree()
 	}
 }
 
-void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_controller_object::DeviceObject> object)
+void DDOPGeneratorGUI::render_designator_setting(std::shared_ptr<isobus::task_controller_object::Object> object)
 {
 	ImGui::InputText("Designator", designatorBuffer, IM_ARRAYSIZE(designatorBuffer));
 
@@ -774,6 +774,36 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 	{
 		object->set_designator(designator);
 	}
+}
+
+void DDOPGeneratorGUI::render_object_id_setting(std::shared_ptr<isobus::task_controller_object::Object> object)
+{
+	ImGui::BeginDisabled();
+	ImGui::InputInt("Object ID", &objectIDBuffer);
+	if (objectIDBuffer < 0)
+	{
+		objectIDBuffer = 0;
+	}
+	else if (objectIDBuffer > 0xFFFF)
+	{
+		objectIDBuffer = 0xFFFF;
+	}
+
+	if ((objectIDBuffer != object->get_object_id()) &&
+	    (!currentObjectPool->get_object_by_id(objectIDBuffer)))
+	{
+		object->set_object_id(objectIDBuffer);
+	}
+	else
+	{
+		objectIDBuffer = object->get_object_id();
+	}
+	ImGui::EndDisabled();
+}
+
+void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_controller_object::DeviceObject> object)
+{
+	render_designator_setting(object);
 
 	ImGui::InputText("Software Version", softwareVersionBuffer, IM_ARRAYSIZE(softwareVersionBuffer));
 
@@ -1051,13 +1081,7 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 
 void DDOPGeneratorGUI::render_device_element_settings(std::shared_ptr<isobus::task_controller_object::DeviceElementObject> object)
 {
-	ImGui::InputText("Designator", designatorBuffer, IM_ARRAYSIZE(designatorBuffer));
-
-	auto designator = std::string(designatorBuffer);
-	if (designator != object->get_designator())
-	{
-		object->set_designator(designator);
-	}
+	render_designator_setting(object);
 
 	ImGui::InputInt("Element Number", &elementNumberBuffer);
 
@@ -1076,27 +1100,7 @@ void DDOPGeneratorGUI::render_device_element_settings(std::shared_ptr<isobus::ta
 		object->set_element_number(elementNumberBuffer);
 	}
 
-	ImGui::BeginDisabled();
-	ImGui::InputInt("Object ID", &objectIDBuffer);
-	if (objectIDBuffer < 0)
-	{
-		objectIDBuffer = 0;
-	}
-	else if (objectIDBuffer > 0xFFFF)
-	{
-		objectIDBuffer = 0xFFFF;
-	}
-
-	if ((objectIDBuffer != object->get_object_id()) &&
-	    (!currentObjectPool->get_object_by_id(objectIDBuffer)))
-	{
-		object->set_object_id(objectIDBuffer);
-	}
-	else
-	{
-		objectIDBuffer = object->get_object_id();
-	}
-	ImGui::EndDisabled();
+	render_object_id_setting(object);
 
 	ImGui::InputInt("Parent Object ID", &parentObjectBuffer);
 
@@ -1167,13 +1171,7 @@ void DDOPGeneratorGUI::render_device_element_settings(std::shared_ptr<isobus::ta
 
 void DDOPGeneratorGUI::render_device_process_data_settings(std::shared_ptr<isobus::task_controller_object::DeviceProcessDataObject> object)
 {
-	ImGui::InputText("Designator", designatorBuffer, IM_ARRAYSIZE(designatorBuffer));
-
-	auto designator = std::string(designatorBuffer);
-	if (designator != object->get_designator())
-	{
-		object->set_designator(designator);
-	}
+	render_designator_setting(object);
 
 	ImGui::InputInt("DDI", &ddiBuffer);
 	if (ddiBuffer < 0)
@@ -1190,27 +1188,7 @@ void DDOPGeneratorGUI::render_device_process_data_settings(std::shared_ptr<isobu
 		object->set_ddi(ddiBuffer);
 	}
 
-	ImGui::BeginDisabled();
-	ImGui::InputInt("Object ID", &objectIDBuffer);
-	if (objectIDBuffer < 0)
-	{
-		objectIDBuffer = 0;
-	}
-	else if (objectIDBuffer > 0xFFFF)
-	{
-		objectIDBuffer = 0xFFFF;
-	}
-
-	if ((objectIDBuffer != object->get_object_id()) &&
-	    (!currentObjectPool->get_object_by_id(objectIDBuffer)))
-	{
-		object->set_object_id(objectIDBuffer);
-	}
-	else
-	{
-		objectIDBuffer = object->get_object_id();
-	}
-	ImGui::EndDisabled();
+	render_object_id_setting(object);
 
 	ImGui::InputInt("Presentation Object ID", &presentationObjectBuffer);
 	if (presentationObjectBuffer < 0)
@@ -1276,13 +1254,7 @@ void DDOPGeneratorGUI::render_device_process_data_settings(std::shared_ptr<isobu
 
 void DDOPGeneratorGUI::render_device_property_settings(std::shared_ptr<isobus::task_controller_object::DevicePropertyObject> object)
 {
-	ImGui::InputText("Designator", designatorBuffer, IM_ARRAYSIZE(designatorBuffer));
-
-	auto designator = std::string(designatorBuffer);
-	if (designator != object->get_designator())
-	{
-		object->set_designator(designator);
-	}
+	render_designator_setting(object);
 
 	ImGui::InputInt("DDI", &ddiBuffer);
 	if (ddiBuffer < 0)
@@ -1320,38 +1292,12 @@ void DDOPGeneratorGUI::render_device_property_settings(std::shared_ptr<isobus::t
 		object->set_device_value_presentation_object_id(presentationObjectBuffer);
 	}
 
-	ImGui::BeginDisabled();
-	ImGui::InputInt("Object ID", &objectIDBuffer);
-	if (objectIDBuffer < 0)
-	{
-		objectIDBuffer = 0;
-	}
-	else if (objectIDBuffer > 0xFFFF)
-	{
-		objectIDBuffer = 0xFFFF;
-	}
-
-	if ((objectIDBuffer != object->get_object_id()) &&
-	    (!currentObjectPool->get_object_by_id(objectIDBuffer)))
-	{
-		object->set_object_id(objectIDBuffer);
-	}
-	else
-	{
-		objectIDBuffer = object->get_object_id();
-	}
-	ImGui::EndDisabled();
+	render_object_id_setting(object);
 }
 
 void DDOPGeneratorGUI::render_device_presentation_settings(std::shared_ptr<isobus::task_controller_object::DeviceValuePresentationObject> object)
 {
-	ImGui::InputText("Designator", designatorBuffer, IM_ARRAYSIZE(designatorBuffer));
-
-	auto designator = std::string(designatorBuffer);
-	if (designator != object->get_designator())
-	{
-		object->set_designator(designator);
-	}
+	render_designator_setting(object);
 
 	ImGui::InputFloat("Scale", &scaleBuffer, 0.0f, 0.0f, "%.9f");
 	if (scaleBuffer > 100000000.0f)
@@ -1385,27 +1331,7 @@ void DDOPGeneratorGUI::render_device_presentation_settings(std::shared_ptr<isobu
 		object->set_number_of_decimals(numberDecimalsBuffer);
 	}
 
-	ImGui::BeginDisabled();
-	ImGui::InputInt("Object ID", &objectIDBuffer);
-	if (objectIDBuffer < 0)
-	{
-		objectIDBuffer = 0;
-	}
-	else if (objectIDBuffer > 0xFFFF)
-	{
-		objectIDBuffer = 0xFFFF;
-	}
-
-	if ((objectIDBuffer != object->get_object_id()) &&
-	    (!currentObjectPool->get_object_by_id(objectIDBuffer)))
-	{
-		object->set_object_id(objectIDBuffer);
-	}
-	else
-	{
-		objectIDBuffer = object->get_object_id();
-	}
-	ImGui::EndDisabled();
+	render_object_id_setting(object);
 }
 
 void DDOPGeneratorGUI::render_object_components(std::shared_ptr<isobus::task_controller_object::Object> object)

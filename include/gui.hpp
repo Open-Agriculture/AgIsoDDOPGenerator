@@ -31,6 +31,8 @@ private:
 	void parseElementChildrenOfElement(std::uint16_t objectID);
 	void parseChildren(std::shared_ptr<isobus::task_controller_object::DeviceElementObject> element);
 	void render_object_tree();
+	void render_designator_setting(std::shared_ptr<isobus::task_controller_object::Object> object);
+	void render_object_id_setting(std::shared_ptr<isobus::task_controller_object::Object> object);
 	void render_device_settings(std::shared_ptr<isobus::task_controller_object::DeviceObject> object);
 	void render_device_element_settings(std::shared_ptr<isobus::task_controller_object::DeviceElementObject> object);
 	void render_device_process_data_settings(std::shared_ptr<isobus::task_controller_object::DeviceProcessDataObject> object);
