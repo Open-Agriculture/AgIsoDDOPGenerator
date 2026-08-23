@@ -93,6 +93,7 @@ private:
 	bool saveModal = false;
 	bool saveAsModal = false;
 	bool exportModal = false;
+	bool showSectionLayout = false;
 	bool currentPoolValid = false;
 };
 

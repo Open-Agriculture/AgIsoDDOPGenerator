@@ -13,9 +13,10 @@
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_sdl2.h"
-#include "isobus/utility/iop_file_interface.hpp"
 #include "isobus/isobus/isobus_data_dictionary.hpp"
+#include "isobus/utility/iop_file_interface.hpp"
 #include "logsink.hpp"
+#include "section_layout.hpp"
 
 #include <cerrno>
 #include <cstdio>
@@ -163,7 +164,7 @@ void DDOPGeneratorGUI::start()
 			// A pool is being worked on
 			ImGui::SetNextWindowSize({ lIO.DisplaySize.x, lIO.DisplaySize.y - 20 });
 			ImGui::SetNextWindowPos({ 0, 18 });
-			ImGui::Begin("DDOP", NULL, ImGuiWindowFlags_NoCollapse);
+			ImGui::Begin("DDOP", NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus);
 
 			// Tree child windows
 			{
@@ -227,6 +228,25 @@ void DDOPGeneratorGUI::start()
 			}
 
 			ImGui::End();
+
+			if (showSectionLayout)
+			{
+				ImGui::SetNextWindowSize({ 720, 420 }, ImGuiCond_FirstUseEver);
+				ImGui::SetNextWindowPos({ 80, 80 }, ImGuiCond_FirstUseEver);
+
+				if (ImGui::Begin("Section Layout", &showSectionLayout))
+				{
+					if (render_section_layout(*currentObjectPool, selectedObjectID))
+					{
+						auto selectedObject = currentObjectPool->get_object_by_id(selectedObjectID);
+						if (nullptr != selectedObject)
+						{
+							on_selected_object_changed(selectedObject);
+						}
+					}
+				}
+				ImGui::End();
+			}
 		}
 
 		// Rendering
@@ -325,6 +345,20 @@ bool DDOPGeneratorGUI::render_menu_bar()
 				currentPoolValid = false;
 			}
 			else if (!currentPoolValid)
+			{
+				ImGui::EndDisabled();
+			}
+			ImGui::EndMenu();
+		}
+
+		if (true == ImGui::BeginMenu("View"))
+		{
+			if (!currentPoolValid)
+			{
+				ImGui::BeginDisabled();
+			}
+			ImGui::MenuItem("Section Layout", "Draw the sections across the lateral (Y) axis", &showSectionLayout);
+			if (!currentPoolValid)
 			{
 				ImGui::EndDisabled();
 			}
