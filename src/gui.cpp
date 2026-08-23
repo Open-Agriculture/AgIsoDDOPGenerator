@@ -21,7 +21,46 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <map>
 #include <sstream>
+
+/// @brief Logs a warning for each device element number used by more than one device element
+/// @param[in] objectPool The device descriptor object pool to scan
+static void warn_on_duplicate_device_element_numbers(isobus::DeviceDescriptorObjectPool &objectPool)
+{
+	std::map<std::uint16_t, std::vector<std::uint16_t>> objectIDsByElementNumber;
+	bool foundDuplicate = false;
+
+	for (std::uint16_t i = 0; i < objectPool.size(); ++i)
+	{
+		auto deviceElement = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceElementObject>(objectPool.get_object_by_index(i));
+
+		if (nullptr != deviceElement)
+		{
+			objectIDsByElementNumber[deviceElement->get_element_number()].push_back(deviceElement->get_object_id());
+		}
+	}
+
+	for (const auto &elementNumberAndObjectIDs : objectIDsByElementNumber)
+	{
+		if (1 < elementNumberAndObjectIDs.second.size())
+		{
+			std::ostringstream objectIDs;
+
+			for (std::size_t i = 0; i < elementNumberAndObjectIDs.second.size(); ++i)
+			{
+				objectIDs << ((0 == i) ? "" : ", ") << elementNumberAndObjectIDs.second[i];
+			}
+			LOG_WARNING("[DDOP]: Device element number %u is used by more than one device element (object IDs %s).", elementNumberAndObjectIDs.first, objectIDs.str().c_str());
+			foundDuplicate = true;
+		}
+	}
+
+	if (foundDuplicate)
+	{
+		LOG_WARNING("[DDOP]: A TC addresses process data by element number, so each device element needs its own number.");
+	}
+}
 
 void DDOPGeneratorGUI::start()
 {
@@ -348,6 +387,7 @@ bool DDOPGeneratorGUI::render_menu_bar()
 
 					if (serializationSuccess)
 					{
+						warn_on_duplicate_device_element_numbers(*currentObjectPool);
 						shouldShowNoErrors = true;
 					}
 					else
@@ -437,6 +477,16 @@ bool DDOPGeneratorGUI::render_menu_bar()
 		ImGui::Text("No serialization errors detected.");
 		ImGui::Text("This does not mean the DDOP will be accepted by a TC");
 		ImGui::Text("it only confirms the structure of the DDOP is valid.");
+		if (!logger.logHistory.empty())
+		{
+			ImGui::Separator();
+			ImGui::Text("Warnings:");
+
+			for (auto &logString : logger.logHistory)
+			{
+				ImGui::Text("%s", logString.logText.c_str());
+			}
+		}
 
 		ImGui::SetItemDefaultFocus();
 		if (ImGui::Button("OK", ImVec2(120, 0)))
