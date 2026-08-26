@@ -45,6 +45,7 @@ private:
 	void render_save();
 	void render_all_objects();
 	void on_selected_object_changed(std::shared_ptr<isobus::task_controller_object::Object> newObject);
+	void prune_references_to_object(std::uint16_t idOfDeletedObject, std::uint16_t parentOfDeletedObject);
 	static std::string get_element_type_string(isobus::task_controller_object::DeviceElementObject::Type type);
 	static std::string get_object_type_string(isobus::task_controller_object::ObjectTypes type);
 	static std::string get_object_display_name(std::shared_ptr<isobus::task_controller_object::Object> object);

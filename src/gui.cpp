@@ -14,6 +14,7 @@
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_sdl2.h"
 #include "isobus/utility/iop_file_interface.hpp"
+#include "isobus/isobus/can_constants.hpp"
 #include "isobus/isobus/isobus_data_dictionary.hpp"
 #include "logsink.hpp"
 
@@ -193,32 +194,12 @@ void DDOPGeneratorGUI::start()
 						if ((selectedObject->get_object_type() != isobus::task_controller_object::ObjectTypes::Device) &&
 						    ImGui::Button("Delete Object"))
 						{
+							auto deletedElement = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceElementObject>(selectedObject);
 							std::uint16_t idOfDeletedObject = selectedObject->get_object_id();
-							currentObjectPool->remove_object_by_id(selectedObject->get_object_id());
+							std::uint16_t parentOfDeletedObject = (nullptr != deletedElement) ? deletedElement->get_parent_object() : isobus::NULL_OBJECT_ID;
 
-							// Prune all other references to this object
-							for (std::uint32_t i = 0; i < currentObjectPool->size(); i++)
-							{
-								auto objectToProcess = currentObjectPool->get_object_by_index(i);
-
-								if ((nullptr != objectToProcess) &&
-								    (isobus::task_controller_object::ObjectTypes::DeviceElement == objectToProcess->get_object_type()))
-								{
-									auto element = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceElementObject>(objectToProcess);
-
-									for (std::size_t j = 0; j < element->get_number_child_objects(); j++)
-									{
-										if (element->get_child_object_id(j) != idOfDeletedObject)
-										{
-											element->remove_reference_to_child_object(idOfDeletedObject);
-										}
-										if (element->get_parent_object() == idOfDeletedObject)
-										{
-											element->set_parent_object(0xFFFF);
-										}
-									}
-								}
-							}
+							currentObjectPool->remove_object_by_id(idOfDeletedObject);
+							prune_references_to_object(idOfDeletedObject, parentOfDeletedObject);
 						}
 						ImGui::PopStyleColor(3);
 					}
@@ -1725,6 +1706,62 @@ void DDOPGeneratorGUI::on_selected_object_changed(std::shared_ptr<isobus::task_c
 
 		default:
 			break;
+	}
+}
+
+void DDOPGeneratorGUI::prune_references_to_object(std::uint16_t idOfDeletedObject, std::uint16_t parentOfDeletedObject)
+{
+	for (std::uint32_t i = 0; i < currentObjectPool->size(); i++)
+	{
+		auto objectToProcess = currentObjectPool->get_object_by_index(i);
+
+		if (nullptr != objectToProcess)
+		{
+			switch (objectToProcess->get_object_type())
+			{
+				case isobus::task_controller_object::ObjectTypes::DeviceElement:
+				{
+					auto element = std::static_pointer_cast<isobus::task_controller_object::DeviceElementObject>(objectToProcess);
+
+					while (element->remove_reference_to_child_object(idOfDeletedObject))
+					{
+					}
+
+					// A parent of NULL_OBJECT_ID is rejected as an orphan when the pool is serialized,
+					// so the children of a deleted element are adopted by its parent instead
+					if (idOfDeletedObject == element->get_parent_object())
+					{
+						element->set_parent_object(parentOfDeletedObject);
+					}
+				}
+				break;
+
+				case isobus::task_controller_object::ObjectTypes::DeviceProcessData:
+				{
+					auto processData = std::static_pointer_cast<isobus::task_controller_object::DeviceProcessDataObject>(objectToProcess);
+
+					if (idOfDeletedObject == processData->get_device_value_presentation_object_id())
+					{
+						processData->set_device_value_presentation_object_id(isobus::NULL_OBJECT_ID);
+					}
+				}
+				break;
+
+				case isobus::task_controller_object::ObjectTypes::DeviceProperty:
+				{
+					auto property = std::static_pointer_cast<isobus::task_controller_object::DevicePropertyObject>(objectToProcess);
+
+					if (idOfDeletedObject == property->get_device_value_presentation_object_id())
+					{
+						property->set_device_value_presentation_object_id(isobus::NULL_OBJECT_ID);
+					}
+				}
+				break;
+
+				default:
+					break;
+			}
+		}
 	}
 }
 
