@@ -191,6 +191,9 @@ void DDOPGeneratorGUI::start()
 						ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0f, 0.0f, 0.0f, 0.8f));
 						ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1.0f, 0.0f, 0.0f, 0.7f));
 						ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1.0f, 0.0f, 0.0f, 0.6f));
+						const bool isRootElement = is_undeletable_root_element(selectedObject);
+
+						ImGui::BeginDisabled(isRootElement);
 						if ((selectedObject->get_object_type() != isobus::task_controller_object::ObjectTypes::Device) &&
 						    ImGui::Button("Delete Object"))
 						{
@@ -200,6 +203,12 @@ void DDOPGeneratorGUI::start()
 
 							currentObjectPool->remove_object_by_id(idOfDeletedObject);
 							prune_references_to_object(idOfDeletedObject, parentOfDeletedObject);
+						}
+						ImGui::EndDisabled();
+
+						if (isRootElement && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+						{
+							ImGui::SetTooltip("This is the device element of type device, the root of the element hierarchy.\nA pool may only have one, so it cannot be deleted while other elements exist.");
 						}
 						ImGui::PopStyleColor(3);
 					}
@@ -1763,6 +1772,40 @@ void DDOPGeneratorGUI::prune_references_to_object(std::uint16_t idOfDeletedObjec
 			}
 		}
 	}
+}
+
+// ISO 11783-10 A.3.1 allows exactly one device element of type device per pool. A pool holding a
+// second one, or holding nothing else at all, stays deletable so it can be repaired or cleared.
+bool DDOPGeneratorGUI::is_undeletable_root_element(std::shared_ptr<isobus::task_controller_object::Object> object)
+{
+	auto rootCandidate = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceElementObject>(object);
+
+	if ((nullptr == rootCandidate) ||
+	    (isobus::task_controller_object::DeviceElementObject::Type::Device != rootCandidate->get_type()))
+	{
+		return false;
+	}
+
+	std::uint32_t numberOfRootElements = 0;
+	std::uint32_t numberOfOtherElements = 0;
+
+	for (std::uint32_t i = 0; i < currentObjectPool->size(); i++)
+	{
+		auto element = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceElementObject>(currentObjectPool->get_object_by_index(i));
+
+		if (nullptr != element)
+		{
+			if (isobus::task_controller_object::DeviceElementObject::Type::Device == element->get_type())
+			{
+				numberOfRootElements++;
+			}
+			else
+			{
+				numberOfOtherElements++;
+			}
+		}
+	}
+	return (1 == numberOfRootElements) && (0 != numberOfOtherElements);
 }
 
 std::string DDOPGeneratorGUI::get_element_type_string(isobus::task_controller_object::DeviceElementObject::Type type)
