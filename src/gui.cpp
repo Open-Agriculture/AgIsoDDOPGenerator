@@ -13,8 +13,8 @@
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_sdl2.h"
-#include "isobus/utility/iop_file_interface.hpp"
 #include "isobus/isobus/isobus_data_dictionary.hpp"
+#include "isobus/utility/iop_file_interface.hpp"
 #include "logsink.hpp"
 
 #include <cerrno>
@@ -1827,16 +1827,16 @@ std::string DDOPGeneratorGUI::get_object_type_string(isobus::task_controller_obj
 std::string DDOPGeneratorGUI::get_object_display_name(std::shared_ptr<isobus::task_controller_object::Object> object)
 {
 	std::string displayName = object->get_designator();
-	
+
 	// Early return if designator is not empty and not the default "Designator" text
 	if (!displayName.empty() && displayName != "Designator")
 	{
 		return displayName;
 	}
-	
+
 	// If designator is empty or default, use appropriate fallback based on object type
 	const auto objectType = object->get_object_type();
-	
+
 	if (objectType == isobus::task_controller_object::ObjectTypes::DeviceProcessData)
 	{
 		auto dpd = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceProcessDataObject>(object);
@@ -1861,7 +1861,7 @@ std::string DDOPGeneratorGUI::get_object_display_name(std::shared_ptr<isobus::ta
 			displayName = get_element_type_string(det->get_type()) + " " + std::to_string(det->get_element_number());
 		}
 	}
-	
+
 	return displayName;
 }
 
