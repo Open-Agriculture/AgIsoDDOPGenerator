@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 project(AgIsoDDOPGenerator
-        VERSION 1.0
+        VERSION 1.1.0
         LANGUAGES CXX
         DESCRIPTION "DDOP Generator based on AgIsoStack++"
 )
