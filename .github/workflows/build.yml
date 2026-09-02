@@ -1,6 +1,11 @@
 name: Build
 
-on: push
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 jobs:
   windows_build:
@@ -8,7 +13,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: Compile
@@ -17,19 +22,39 @@ jobs:
           cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DCAN_DRIVER=None -DCMAKE_BUILD_TYPE=Release
           cmake --build build --config Release
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-executable
           path: |         
              build/Release/*.dll
              build/Release/*.exe
 
+  macos_build:
+    name: MacOS Build
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - name: Compile
+        run: |
+          mkdir build
+          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DCAN_DRIVER=None -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-executable
+          path: |
+            build/AgIsoDDOPGenerator
+
   ubuntu_build:
     name: Ubuntu Build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: Compile
@@ -39,7 +64,7 @@ jobs:
           cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DCAN_DRIVER=None -DCMAKE_BUILD_TYPE=Release
           cmake --build build --config Release
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-executable
           path: |
