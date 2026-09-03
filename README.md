@@ -17,6 +17,22 @@ When used in combination with AgIsoStack (or any other TC client), it provides a
 * Basic object pool error checking to help you find errors before loading onto a TC
 * Completely free and open source alternative to many paid products!
 
+### Releases
+
+Prebuilt binaries for Windows, Linux and macOS 11+ (Apple Silicon) are attached to every [release](https://github.com/Open-Agriculture/AgIsoDDOPGenerator/releases).
+
+The Linux binary links SDL2 and OpenGL dynamically and does not bundle them:
+
+```
+sudo apt install libsdl2-2.0-0 libopengl0
+```
+
+The macOS binary is unsigned, so Gatekeeper quarantines it on download. Keep it in the same folder as the `libSDL2-2.0.0.dylib` from the same archive, and clear the quarantine flag:
+
+```
+xattr -dr com.apple.quarantine AgIsoDDOPGenerator
+```
+
 ### Compilation
 
 This project is built with CMake.

@@ -6,6 +6,8 @@ on:
       - main
   pull_request:
     types: [opened, synchronize, reopened]
+  release:
+    types: [published]
 
 jobs:
   windows_build:
@@ -21,13 +23,14 @@ jobs:
           mkdir build
           cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DCAN_DRIVER=None -DCMAKE_BUILD_TYPE=Release
           cmake --build build --config Release
+      - name: Package
+        run: Compress-Archive -Path build/Release/*.exe, build/Release/*.dll -DestinationPath windows-executable.zip
       - name: Upload Artifacts
         uses: actions/upload-artifact@v7
         with:
           name: windows-executable
-          path: |         
-             build/Release/*.dll
-             build/Release/*.exe
+          path: windows-executable.zip
+          if-no-files-found: error
 
   macos_build:
     name: MacOS Build
@@ -42,17 +45,27 @@ jobs:
           mkdir build
           cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DCAN_DRIVER=None -DCMAKE_BUILD_TYPE=Release
           cmake --build build --config Release
+      - name: Package
+        run: (cd build && tar -czf ../macos-executable.tar.gz AgIsoDDOPGenerator libSDL2*.dylib)
       - name: Upload Artifacts
         uses: actions/upload-artifact@v7
         with:
           name: macos-executable
-          path: |
-            build/AgIsoDDOPGenerator
+          path: macos-executable.tar.gz
+          if-no-files-found: error
 
   ubuntu_build:
     name: Ubuntu Build
     runs-on: ubuntu-latest
+    # ubuntu-latest is now 24.04, whose glibc 2.39 links symbols that 22.04's glibc 2.35 does
+    # not have, so a binary built on the runner image will not start there. Building inside
+    # 22.04 keeps that floor pinned no matter what ubuntu-latest becomes next.
+    container: ubuntu:22.04
     steps:
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y build-essential cmake git ca-certificates libgl1-mesa-dev libxext-dev
       - name: Checkout
         uses: actions/checkout@v7
         with:
@@ -60,12 +73,40 @@ jobs:
       - name: Compile
         run: |
           mkdir build
-          sudo apt-get install -y libgl1-mesa-dev libxext-dev
           cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DCAN_DRIVER=None -DCMAKE_BUILD_TYPE=Release
           cmake --build build --config Release
+      - name: Package
+        run: tar -czf linux-executable.tar.gz -C build AgIsoDDOPGenerator
       - name: Upload Artifacts
         uses: actions/upload-artifact@v7
         with:
           name: linux-executable
-          path: |
-            build/AgIsoDDOPGenerator
+          path: linux-executable.tar.gz
+          if-no-files-found: error
+
+  release_upload:
+    name: Release Packages
+    if: github.event_name == 'release'
+    needs: [windows_build, macos_build, ubuntu_build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Packages
+        uses: actions/download-artifact@v7
+        with:
+          pattern: "*-executable"
+          merge-multiple: true
+      - name: Verify Packages
+        run: |
+          for os in linux macos; do
+            mkdir -p "verify/$os"
+            tar -xzf "$os-executable.tar.gz" -C "verify/$os"
+            test -x "verify/$os/AgIsoDDOPGenerator"
+          done
+      - name: Attach Packages To Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" linux-executable.tar.gz macos-executable.tar.gz windows-executable.zip --clobber
