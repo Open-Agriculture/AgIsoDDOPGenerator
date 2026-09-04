@@ -715,6 +715,25 @@ void DDOPGeneratorGUI::render_object_tree()
 	}
 }
 
+template<typename T>
+void DDOPGeneratorGUI::render_ddi_setting(std::shared_ptr<T> object)
+{
+	ImGui::InputInt("DDI", &ddiBuffer);
+	if (ddiBuffer < 0)
+	{
+		ddiBuffer = 0;
+	}
+	else if (ddiBuffer > 0xFFFF)
+	{
+		ddiBuffer = 0xFFFF;
+	}
+
+	if (ddiBuffer != object->get_ddi())
+	{
+		object->set_ddi(ddiBuffer);
+	}
+}
+
 void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_controller_object::DeviceObject> object)
 {
 	ImGui::InputText("Designator", designatorBuffer, IM_ARRAYSIZE(designatorBuffer));
@@ -1125,20 +1144,7 @@ void DDOPGeneratorGUI::render_device_process_data_settings(std::shared_ptr<isobu
 		object->set_designator(designator);
 	}
 
-	ImGui::InputInt("DDI", &ddiBuffer);
-	if (ddiBuffer < 0)
-	{
-		ddiBuffer = 0;
-	}
-	else if (ddiBuffer > 0xFFFF)
-	{
-		ddiBuffer = 0xFFFF;
-	}
-
-	if (ddiBuffer != object->get_ddi())
-	{
-		object->set_ddi(ddiBuffer);
-	}
+	render_ddi_setting(object);
 
 	ImGui::BeginDisabled();
 	ImGui::InputInt("Object ID", &objectIDBuffer);
@@ -1234,20 +1240,7 @@ void DDOPGeneratorGUI::render_device_property_settings(std::shared_ptr<isobus::t
 		object->set_designator(designator);
 	}
 
-	ImGui::InputInt("DDI", &ddiBuffer);
-	if (ddiBuffer < 0)
-	{
-		ddiBuffer = 0;
-	}
-	else if (ddiBuffer > 0xFFFF)
-	{
-		ddiBuffer = 0xFFFF;
-	}
-
-	if (ddiBuffer != object->get_ddi())
-	{
-		object->set_ddi(ddiBuffer);
-	}
+	render_ddi_setting(object);
 
 	ImGui::InputInt("Value", &valueBuffer);
 	if (valueBuffer != object->get_value())
