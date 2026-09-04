@@ -23,6 +23,9 @@
 #include <fstream>
 #include <sstream>
 
+constexpr std::uint16_t PROPRIETARY_DDI_RANGE_START = 57344;
+constexpr std::uint16_t PROPRIETARY_DDI_RANGE_END = 65534;
+
 void DDOPGeneratorGUI::start()
 {
 	isobus::CANStackLogger::set_can_stack_logger_sink(&logger);
@@ -728,9 +731,25 @@ void DDOPGeneratorGUI::render_ddi_setting(std::shared_ptr<T> object)
 		ddiBuffer = 0xFFFF;
 	}
 
-	if (ddiBuffer != object->get_ddi())
+	auto ddi = static_cast<std::uint16_t>(ddiBuffer);
+	const auto &entry = isobus::DataDictionary::get_entry(ddi);
+
+	if ((ddi >= PROPRIETARY_DDI_RANGE_START) && (ddi <= PROPRIETARY_DDI_RANGE_END))
 	{
-		object->set_ddi(ddiBuffer);
+		ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "Proprietary DDI");
+	}
+	else if (entry.ddi == ddi)
+	{
+		ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "%s", entry.name.c_str());
+	}
+	else
+	{
+		ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Not in ISO 11783-11");
+	}
+
+	if (ddi != object->get_ddi())
+	{
+		object->set_ddi(ddi);
 	}
 }
 
