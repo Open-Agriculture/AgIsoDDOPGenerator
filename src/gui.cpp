@@ -23,6 +23,9 @@
 #include <fstream>
 #include <sstream>
 
+constexpr std::uint16_t PROPRIETARY_DDI_RANGE_START = 57344;
+constexpr std::uint16_t PROPRIETARY_DDI_RANGE_END = 65534;
+
 void DDOPGeneratorGUI::start()
 {
 	isobus::CANStackLogger::set_can_stack_logger_sink(&logger);
@@ -715,6 +718,41 @@ void DDOPGeneratorGUI::render_object_tree()
 	}
 }
 
+template<typename T>
+void DDOPGeneratorGUI::render_ddi_setting(std::shared_ptr<T> object)
+{
+	ImGui::InputInt("DDI", &ddiBuffer);
+	if (ddiBuffer < 0)
+	{
+		ddiBuffer = 0;
+	}
+	else if (ddiBuffer > 0xFFFF)
+	{
+		ddiBuffer = 0xFFFF;
+	}
+
+	auto ddi = static_cast<std::uint16_t>(ddiBuffer);
+	const auto &entry = isobus::DataDictionary::get_entry(ddi);
+
+	if ((ddi >= PROPRIETARY_DDI_RANGE_START) && (ddi <= PROPRIETARY_DDI_RANGE_END))
+	{
+		ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "Proprietary DDI");
+	}
+	else if (entry.ddi == ddi)
+	{
+		ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "%s", entry.name.c_str());
+	}
+	else
+	{
+		ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Not in ISO 11783-11");
+	}
+
+	if (ddi != object->get_ddi())
+	{
+		object->set_ddi(ddi);
+	}
+}
+
 void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_controller_object::DeviceObject> object)
 {
 	ImGui::InputText("Designator", designatorBuffer, IM_ARRAYSIZE(designatorBuffer));
@@ -1125,20 +1163,7 @@ void DDOPGeneratorGUI::render_device_process_data_settings(std::shared_ptr<isobu
 		object->set_designator(designator);
 	}
 
-	ImGui::InputInt("DDI", &ddiBuffer);
-	if (ddiBuffer < 0)
-	{
-		ddiBuffer = 0;
-	}
-	else if (ddiBuffer > 0xFFFF)
-	{
-		ddiBuffer = 0xFFFF;
-	}
-
-	if (ddiBuffer != object->get_ddi())
-	{
-		object->set_ddi(ddiBuffer);
-	}
+	render_ddi_setting(object);
 
 	ImGui::BeginDisabled();
 	ImGui::InputInt("Object ID", &objectIDBuffer);
@@ -1234,20 +1259,7 @@ void DDOPGeneratorGUI::render_device_property_settings(std::shared_ptr<isobus::t
 		object->set_designator(designator);
 	}
 
-	ImGui::InputInt("DDI", &ddiBuffer);
-	if (ddiBuffer < 0)
-	{
-		ddiBuffer = 0;
-	}
-	else if (ddiBuffer > 0xFFFF)
-	{
-		ddiBuffer = 0xFFFF;
-	}
-
-	if (ddiBuffer != object->get_ddi())
-	{
-		object->set_ddi(ddiBuffer);
-	}
+	render_ddi_setting(object);
 
 	ImGui::InputInt("Value", &valueBuffer);
 	if (valueBuffer != object->get_value())
