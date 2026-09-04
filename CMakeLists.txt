@@ -6,7 +6,7 @@ set(CMAKE_OSX_DEPLOYMENT_TARGET
 
 project(
   AgIsoDDOPGenerator
-  VERSION 1.1.0
+  VERSION 1.1.1
   LANGUAGES CXX
   DESCRIPTION "DDOP Generator based on AgIsoStack++")
 
