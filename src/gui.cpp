@@ -137,7 +137,7 @@ void DDOPGeneratorGUI::start()
 		// GUI Main Code:
 		bool prevSaveAsModalState = saveAsModal;
 		bool prevSaveModalState = saveModal;
-		shouldExit = render_menu_bar();
+		shouldExit |= render_menu_bar();
 		render_open_file_menu();
 
 		if ((saveAsModal != prevSaveAsModalState) && saveAsModal)
