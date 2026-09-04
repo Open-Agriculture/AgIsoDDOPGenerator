@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 
+set(CMAKE_OSX_DEPLOYMENT_TARGET
+    "11.0"
+    CACHE STRING "Minimum macOS version the binary supports")
+
 project(
   AgIsoDDOPGenerator
   VERSION 1.1.0
@@ -52,12 +56,26 @@ target_link_libraries(
 
 install(TARGETS AgIsoDDOPGenerator RUNTIME DESTINATION bin)
 
-if(WIN32)
+if(WIN32 OR APPLE)
   add_custom_command(
     TARGET AgIsoDDOPGenerator
     POST_BUILD
-    COMMENT "Copying SDL2.dll to the build directory"
+    COMMENT "Copying the SDL2 library to the build directory"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:SDL2::SDL2>"
             "$<TARGET_FILE_DIR:AgIsoDDOPGenerator>"
     VERBATIM)
 endif()
+
+if(APPLE)
+  set(RUNTIME_SEARCH_PATH "@executable_path")
+else()
+  set(RUNTIME_SEARCH_PATH "\$ORIGIN/submodules/sdl")
+endif()
+
+# The rpath CMake computes is the absolute build directory plus an empty entry,
+# which the loader reads as the current working directory - a released binary
+# would load libSDL2 from whatever folder it was started in. Both paths here are
+# relative to the executable instead.
+set_target_properties(
+  AgIsoDDOPGenerator PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE
+                                INSTALL_RPATH "${RUNTIME_SEARCH_PATH}")
