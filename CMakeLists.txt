@@ -54,6 +54,9 @@ target_link_libraries(
   AgIsoDDOPGenerator PRIVATE isobus::Isobus isobus::Utility OpenGL::GL SDL2
                              SDL2main ${CMAKE_DL_LIBS})
 
+enable_testing()
+add_subdirectory(test)
+
 install(TARGETS AgIsoDDOPGenerator RUNTIME DESTINATION bin)
 
 if(WIN32 OR APPLE)
