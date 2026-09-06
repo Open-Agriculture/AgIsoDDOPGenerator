@@ -517,30 +517,30 @@ void DDOPGeneratorGUI::render_open_file_menu()
 
 			if (!loadedIopData.empty())
 			{
+				const std::uint8_t selectedVersion = (0 == FileDialog::versions_current_idx) ? 3 : 4;
+
 				selectedObjectID = 0xFFFF;
-				logger.logHistory.clear();
-				currentObjectPool.reset();
-				currentObjectPool = std::make_unique<isobus::DeviceDescriptorObjectPool>();
+				currentPoolValid = false;
 
-				if (0 == FileDialog::versions_current_idx)
+				for (const std::uint8_t version : { selectedVersion, static_cast<std::uint8_t>((3 == selectedVersion) ? 4 : 3) })
 				{
-					currentObjectPool->set_task_controller_compatibility_level(3);
-				}
-				else
-				{
-					currentObjectPool->set_task_controller_compatibility_level(4);
+					logger.logHistory.clear();
+					currentObjectPool.reset();
+					currentObjectPool = std::make_unique<isobus::DeviceDescriptorObjectPool>();
+					currentObjectPool->set_task_controller_compatibility_level(version);
+
+					if (true == currentObjectPool->deserialize_binary_object_pool(loadedIopData, isobus::NAME(0)))
+					{
+						currentPoolValid = true;
+						lastFileName = selectedFileToRead;
+						FileDialog::versions_current_idx = (3 == version) ? 0 : 1; // Saving reads this back, so it has to match what actually parsed
+						break;
+					}
 				}
 
-				if (true == currentObjectPool->deserialize_binary_object_pool(loadedIopData, isobus::NAME(0)))
-				{
-					// Valid pool?
-					currentPoolValid = true;
-					lastFileName = selectedFileToRead;
-				}
-				else
+				if (false == currentPoolValid)
 				{
 					currentObjectPool.reset();
-					currentPoolValid = false;
 
 					ImGui::OpenPopup("Error Loading DDOP");
 				}
@@ -554,7 +554,7 @@ void DDOPGeneratorGUI::render_open_file_menu()
 
 	if (ImGui::BeginPopupModal("Error Loading DDOP", NULL, ImGuiWindowFlags_AlwaysAutoResize))
 	{
-		ImGui::Text("There were errors loading the DDOP. Make sure you selected the correct TC version.");
+		ImGui::Text("There were errors loading the DDOP. It was tried as both a version 3 and a version 4 pool.");
 		ImGui::Separator();
 
 		for (auto &logString : logger.logHistory)

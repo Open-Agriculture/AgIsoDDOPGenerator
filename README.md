@@ -13,7 +13,7 @@ When used in combination with AgIsoStack (or any other TC client), it provides a
 ### Features
 
 * Supports dynamically editing any DDOP or creating one from scratch
-* Compatible with both TC version 3 and 4
+* Compatible with both TC version 3 and 4, and detects which one a file uses when opening it
 * Basic object pool error checking to help you find errors before loading onto a TC
 * Completely free and open source alternative to many paid products!
 
