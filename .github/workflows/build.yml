@@ -75,7 +75,10 @@ jobs:
           cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DCAN_DRIVER=None -DCMAKE_BUILD_TYPE=Release
           cmake --build build --config Release
       - name: Package
-        run: tar -czf linux-executable.tar.gz -C build AgIsoDDOPGenerator
+        run: |
+          cp packaging/agisoddopgenerator.desktop packaging/agisoddopgenerator.xml build/
+          tar -czf linux-executable.tar.gz -C build AgIsoDDOPGenerator \
+            agisoddopgenerator.desktop agisoddopgenerator.xml
       - name: Upload Artifacts
         uses: actions/upload-artifact@v7
         with:

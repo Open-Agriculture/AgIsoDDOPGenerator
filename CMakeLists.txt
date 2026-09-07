@@ -56,6 +56,13 @@ target_link_libraries(
 
 install(TARGETS AgIsoDDOPGenerator RUNTIME DESTINATION bin)
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  install(FILES packaging/agisoddopgenerator.desktop
+          DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
+  install(FILES packaging/agisoddopgenerator.xml
+          DESTINATION "${CMAKE_INSTALL_DATADIR}/mime/packages")
+endif()
+
 if(WIN32 OR APPLE)
   add_custom_command(
     TARGET AgIsoDDOPGenerator

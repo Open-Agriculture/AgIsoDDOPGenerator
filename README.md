@@ -28,6 +28,30 @@ The Linux binary links SDL2 and OpenGL dynamically and does not bundle them:
 sudo apt install libsdl2-2.0-0 libopengl0
 ```
 
+The Linux archive also carries a desktop entry and a MIME definition. Install them to open a DDOP
+by double-clicking it:
+
+```
+sudo install -Dm644 agisoddopgenerator.desktop /usr/share/applications/agisoddopgenerator.desktop
+sudo install -Dm644 agisoddopgenerator.xml /usr/share/mime/packages/agisoddopgenerator.xml
+sudo install -Dm755 AgIsoDDOPGenerator /usr/local/bin/AgIsoDDOPGenerator
+sudo update-mime-database /usr/share/mime
+sudo update-desktop-database /usr/share/applications
+xdg-mime default agisoddopgenerator.desktop application/x-iso11783-ddop
+```
+
+The last three commands come from the `shared-mime-info`, `desktop-file-utils` and `xdg-utils`
+packages.
+
+`cmake --install` installs the same files under `${CMAKE_INSTALL_PREFIX}/share` and does not refresh
+the caches.
+
+A DDOP is recognized by its `DVC` header, not the `.iop` extension, which
+[AgIsoVirtualTerminal](https://github.com/Open-Agriculture/AgIsoVirtualTerminal) pools also use. Pools
+starting with another object are not recognized.
+
+Windows and macOS have no installer or app bundle yet, so pass the file on the command line.
+
 The macOS binary is unsigned, so Gatekeeper quarantines it on download. Keep it in the same folder as the `libSDL2-2.0.0.dylib` from the same archive, and clear the quarantine flag:
 
 ```
