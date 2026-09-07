@@ -61,6 +61,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
           DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
   install(FILES packaging/agisoddopgenerator.xml
           DESTINATION "${CMAKE_INSTALL_DATADIR}/mime/packages")
+  install(FILES packaging/agisoddopgenerator.svg
+          DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps")
+  install(
+    FILES packaging/agisoddopgenerator.svg
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/mimetypes"
+    RENAME application-x-iso11783-ddop.svg)
 endif()
 
 if(WIN32 OR APPLE)

@@ -28,20 +28,23 @@ The Linux binary links SDL2 and OpenGL dynamically and does not bundle them:
 sudo apt install libsdl2-2.0-0 libopengl0
 ```
 
-The Linux archive also carries a desktop entry and a MIME definition. Install them to open a DDOP
-by double-clicking it:
+The Linux archive also carries a desktop entry, a MIME definition and the application icon. Install
+them to open a DDOP by double-clicking it:
 
 ```
 sudo install -Dm644 agisoddopgenerator.desktop /usr/share/applications/agisoddopgenerator.desktop
 sudo install -Dm644 agisoddopgenerator.xml /usr/share/mime/packages/agisoddopgenerator.xml
+sudo install -Dm644 agisoddopgenerator.svg /usr/share/icons/hicolor/scalable/apps/agisoddopgenerator.svg
+sudo install -Dm644 agisoddopgenerator.svg /usr/share/icons/hicolor/scalable/mimetypes/application-x-iso11783-ddop.svg
 sudo install -Dm755 AgIsoDDOPGenerator /usr/local/bin/AgIsoDDOPGenerator
 sudo update-mime-database /usr/share/mime
 sudo update-desktop-database /usr/share/applications
+sudo gtk-update-icon-cache /usr/share/icons/hicolor
 xdg-mime default agisoddopgenerator.desktop application/x-iso11783-ddop
 ```
 
-The last three commands come from the `shared-mime-info`, `desktop-file-utils` and `xdg-utils`
-packages.
+The second icon copy is the one file managers look up by MIME type. The last four commands come from
+the `shared-mime-info`, `desktop-file-utils`, `libgtk-3-bin` and `xdg-utils` packages.
 
 `cmake --install` installs the same files under `${CMAKE_INSTALL_PREFIX}/share` and does not refresh
 the caches.

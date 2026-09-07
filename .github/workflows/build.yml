@@ -76,9 +76,10 @@ jobs:
           cmake --build build --config Release
       - name: Package
         run: |
-          cp packaging/agisoddopgenerator.desktop packaging/agisoddopgenerator.xml build/
+          cp packaging/agisoddopgenerator.desktop packaging/agisoddopgenerator.xml \
+            packaging/agisoddopgenerator.svg build/
           tar -czf linux-executable.tar.gz -C build AgIsoDDOPGenerator \
-            agisoddopgenerator.desktop agisoddopgenerator.xml
+            agisoddopgenerator.desktop agisoddopgenerator.xml agisoddopgenerator.svg
       - name: Upload Artifacts
         uses: actions/upload-artifact@v7
         with:

@@ -10,6 +10,7 @@
 #include "L2DFileDialog.hpp"
 #include "SDL.h"
 #include "SDL_opengl.h"
+#include "icon.hpp"
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_sdl2.h"
@@ -69,6 +70,14 @@ void DDOPGeneratorGUI::start(const std::string &fileToOpen)
 	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
 	SDL_WindowFlags lWindowFlags = static_cast<SDL_WindowFlags>(SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
 	SDL_Window *lpWindow = SDL_CreateWindow("AgIsoStack DDOP Generator", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, lWindowFlags);
+	SDL_Surface *lpIconSurface = SDL_CreateRGBSurfaceWithFormatFrom(const_cast<unsigned char *>(ICON_RGBA), ICON_WIDTH, ICON_HEIGHT, 32, ICON_WIDTH * 4, SDL_PIXELFORMAT_RGBA32);
+
+	if (nullptr != lpIconSurface)
+	{
+		SDL_SetWindowIcon(lpWindow, lpIconSurface);
+		SDL_FreeSurface(lpIconSurface);
+	}
+
 	SDL_GLContext lpGLContext = SDL_GL_CreateContext(lpWindow);
 	SDL_GL_MakeCurrent(lpWindow, lpGLContext);
 	SDL_GL_SetSwapInterval(1); // Enable vsync
