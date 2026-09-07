@@ -21,7 +21,7 @@ class DDOPGeneratorGUI
 public:
 	DDOPGeneratorGUI() = default;
 
-	void start();
+	void start(const std::string &fileToOpen);
 
 private:
 	static constexpr std::size_t FILE_PATH_BUFFER_MAX_LENGTH = 1024;

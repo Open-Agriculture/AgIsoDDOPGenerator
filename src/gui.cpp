@@ -26,7 +26,7 @@
 constexpr std::uint16_t PROPRIETARY_DDI_RANGE_START = 57344;
 constexpr std::uint16_t PROPRIETARY_DDI_RANGE_END = 65534;
 
-void DDOPGeneratorGUI::start()
+void DDOPGeneratorGUI::start(const std::string &fileToOpen)
 {
 	isobus::CANStackLogger::set_can_stack_logger_sink(&logger);
 
@@ -106,6 +106,13 @@ void DDOPGeneratorGUI::start()
 
 	// Our state
 	ImVec4 lClearColor = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+
+	if ((!fileToOpen.empty()) && (FILE_PATH_BUFFER_MAX_LENGTH > fileToOpen.length()))
+	{
+		memcpy(filePathBuffer, fileToOpen.c_str(), fileToOpen.length() + 1);
+		FileDialog::versions_current_idx = 1; // Prefer version 4, render_open_file_menu falls back to 3
+		openFileDialogue = true;
+	}
 
 	// Main loop
 	bool shouldExit = false;
