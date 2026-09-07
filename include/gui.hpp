@@ -24,7 +24,8 @@ public:
 	void start(const std::string &fileToOpen);
 
 private:
-	static constexpr std::size_t FILE_PATH_BUFFER_MAX_LENGTH = 1024;
+	// PATH_MAX on Linux; a longer path cannot be opened by anything anyway
+	static constexpr std::size_t FILE_PATH_BUFFER_MAX_LENGTH = 4096;
 
 	bool render_menu_bar();
 	void render_open_file_menu();
@@ -67,7 +68,6 @@ private:
 	isobus::LanguageCommandInterface::UnitSystem genericUnitSystem = isobus::LanguageCommandInterface::UnitSystem::Metric;
 
 	std::unique_ptr<isobus::DeviceDescriptorObjectPool> currentObjectPool;
-	std::vector<std::uint8_t> loadedIopData;
 	char filePathBuffer[FILE_PATH_BUFFER_MAX_LENGTH] = { 0 };
 	char designatorBuffer[129] = { 0 };
 	char softwareVersionBuffer[129] = { 0 };
@@ -77,6 +77,7 @@ private:
 	char hexIsoNameBuffer[17] = { 0 };
 	char languageCodeBuffer[3] = { 0 };
 	std::string lastFileName;
+	std::string errorFileName;
 	int elementNumberBuffer = 0;
 	int parentObjectBuffer = 0;
 	int ddiBuffer = 0;

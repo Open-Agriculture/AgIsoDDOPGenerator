@@ -20,6 +20,8 @@
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
+#include <exception>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 
@@ -520,9 +522,30 @@ void DDOPGeneratorGUI::render_open_file_menu()
 
 		if (!selectedFileToRead.empty())
 		{
-			loadedIopData = isobus::IOPFileInterface::read_iop_file(selectedFileToRead);
+			std::vector<std::uint8_t> loadedIopData;
+			std::error_code fileError;
 
-			if (!loadedIopData.empty())
+			logger.logHistory.clear();
+			errorFileName = selectedFileToRead;
+
+			// A fifo or device node would block the read rather than fail it
+			if (std::filesystem::is_regular_file(selectedFileToRead, fileError))
+			{
+				try
+				{
+					loadedIopData = isobus::IOPFileInterface::read_iop_file(selectedFileToRead);
+				}
+				catch (const std::exception &)
+				{
+					// read_iop_file reserves whatever tellg reports, which throws for a file that reports no size
+				}
+			}
+
+			if (loadedIopData.empty())
+			{
+				ImGui::OpenPopup("Error Loading DDOP");
+			}
+			else
 			{
 				const std::uint8_t selectedVersion = (0 == FileDialog::versions_current_idx) ? 3 : 4;
 
@@ -531,7 +554,6 @@ void DDOPGeneratorGUI::render_open_file_menu()
 
 				for (const std::uint8_t version : { selectedVersion, static_cast<std::uint8_t>((3 == selectedVersion) ? 4 : 3) })
 				{
-					logger.logHistory.clear();
 					currentObjectPool.reset();
 					currentObjectPool = std::make_unique<isobus::DeviceDescriptorObjectPool>();
 					currentObjectPool->set_task_controller_compatibility_level(version);
@@ -540,7 +562,6 @@ void DDOPGeneratorGUI::render_open_file_menu()
 					{
 						currentPoolValid = true;
 						lastFileName = selectedFileToRead;
-						FileDialog::versions_current_idx = (3 == version) ? 0 : 1; // Saving reads this back, so it has to match what actually parsed
 						break;
 					}
 				}
@@ -553,15 +574,11 @@ void DDOPGeneratorGUI::render_open_file_menu()
 				}
 			}
 		}
-		else
-		{
-			// No valid pool selected
-		}
 	}
 
 	if (ImGui::BeginPopupModal("Error Loading DDOP", NULL, ImGuiWindowFlags_AlwaysAutoResize))
 	{
-		ImGui::Text("There were errors loading the DDOP. It was tried as both a version 3 and a version 4 pool.");
+		ImGui::TextWrapped("%s could not be read, or is not a valid version 3 or version 4 DDOP.", errorFileName.c_str());
 		ImGui::Separator();
 
 		for (auto &logString : logger.logHistory)
