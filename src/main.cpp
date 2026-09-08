@@ -18,7 +18,7 @@ int main(int aArgCount, char *apArgValues[], char *[])
 {
 	DDOPGeneratorGUI GUI;
 
-	GUI.start();
+	GUI.start((2 <= aArgCount) ? apArgValues[1] : "");
 
 	return 0;
 }

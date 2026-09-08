@@ -10,6 +10,7 @@
 #include "L2DFileDialog.hpp"
 #include "SDL.h"
 #include "SDL_opengl.h"
+#include "icon.hpp"
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_sdl2.h"
@@ -20,13 +21,15 @@
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
+#include <exception>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 
 constexpr std::uint16_t PROPRIETARY_DDI_RANGE_START = 57344;
 constexpr std::uint16_t PROPRIETARY_DDI_RANGE_END = 65534;
 
-void DDOPGeneratorGUI::start()
+void DDOPGeneratorGUI::start(const std::string &fileToOpen)
 {
 	isobus::CANStackLogger::set_can_stack_logger_sink(&logger);
 
@@ -67,6 +70,14 @@ void DDOPGeneratorGUI::start()
 	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
 	SDL_WindowFlags lWindowFlags = static_cast<SDL_WindowFlags>(SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
 	SDL_Window *lpWindow = SDL_CreateWindow("AgIsoStack DDOP Generator", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, lWindowFlags);
+	SDL_Surface *lpIconSurface = SDL_CreateRGBSurfaceWithFormatFrom(const_cast<unsigned char *>(ICON_RGBA), ICON_WIDTH, ICON_HEIGHT, 32, ICON_WIDTH * 4, SDL_PIXELFORMAT_RGBA32);
+
+	if (nullptr != lpIconSurface)
+	{
+		SDL_SetWindowIcon(lpWindow, lpIconSurface);
+		SDL_FreeSurface(lpIconSurface);
+	}
+
 	SDL_GLContext lpGLContext = SDL_GL_CreateContext(lpWindow);
 	SDL_GL_MakeCurrent(lpWindow, lpGLContext);
 	SDL_GL_SetSwapInterval(1); // Enable vsync
@@ -106,6 +117,13 @@ void DDOPGeneratorGUI::start()
 
 	// Our state
 	ImVec4 lClearColor = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+
+	if ((!fileToOpen.empty()) && (FILE_PATH_BUFFER_MAX_LENGTH > fileToOpen.length()))
+	{
+		memcpy(filePathBuffer, fileToOpen.c_str(), fileToOpen.length() + 1);
+		FileDialog::versions_current_idx = 1; // Prefer version 4, render_open_file_menu falls back to 3
+		openFileDialogue = true;
+	}
 
 	// Main loop
 	bool shouldExit = false;
@@ -513,48 +531,63 @@ void DDOPGeneratorGUI::render_open_file_menu()
 
 		if (!selectedFileToRead.empty())
 		{
-			loadedIopData = isobus::IOPFileInterface::read_iop_file(selectedFileToRead);
+			std::vector<std::uint8_t> loadedIopData;
+			std::error_code fileError;
 
-			if (!loadedIopData.empty())
+			logger.logHistory.clear();
+			errorFileName = selectedFileToRead;
+
+			// A fifo or device node would block the read rather than fail it
+			if (std::filesystem::is_regular_file(selectedFileToRead, fileError))
 			{
+				try
+				{
+					loadedIopData = isobus::IOPFileInterface::read_iop_file(selectedFileToRead);
+				}
+				catch (const std::exception &)
+				{
+					// read_iop_file reserves whatever tellg reports, which throws for a file that reports no size
+				}
+			}
+
+			if (loadedIopData.empty())
+			{
+				ImGui::OpenPopup("Error Loading DDOP");
+			}
+			else
+			{
+				const std::uint8_t selectedVersion = (0 == FileDialog::versions_current_idx) ? 3 : 4;
+
 				selectedObjectID = 0xFFFF;
-				logger.logHistory.clear();
-				currentObjectPool.reset();
-				currentObjectPool = std::make_unique<isobus::DeviceDescriptorObjectPool>();
+				currentPoolValid = false;
 
-				if (0 == FileDialog::versions_current_idx)
-				{
-					currentObjectPool->set_task_controller_compatibility_level(3);
-				}
-				else
-				{
-					currentObjectPool->set_task_controller_compatibility_level(4);
-				}
-
-				if (true == currentObjectPool->deserialize_binary_object_pool(loadedIopData, isobus::NAME(0)))
-				{
-					// Valid pool?
-					currentPoolValid = true;
-					lastFileName = selectedFileToRead;
-				}
-				else
+				for (const std::uint8_t version : { selectedVersion, static_cast<std::uint8_t>((3 == selectedVersion) ? 4 : 3) })
 				{
 					currentObjectPool.reset();
-					currentPoolValid = false;
+					currentObjectPool = std::make_unique<isobus::DeviceDescriptorObjectPool>();
+					currentObjectPool->set_task_controller_compatibility_level(version);
+
+					if (true == currentObjectPool->deserialize_binary_object_pool(loadedIopData, isobus::NAME(0)))
+					{
+						currentPoolValid = true;
+						lastFileName = selectedFileToRead;
+						break;
+					}
+				}
+
+				if (false == currentPoolValid)
+				{
+					currentObjectPool.reset();
 
 					ImGui::OpenPopup("Error Loading DDOP");
 				}
 			}
 		}
-		else
-		{
-			// No valid pool selected
-		}
 	}
 
 	if (ImGui::BeginPopupModal("Error Loading DDOP", NULL, ImGuiWindowFlags_AlwaysAutoResize))
 	{
-		ImGui::Text("There were errors loading the DDOP. Make sure you selected the correct TC version.");
+		ImGui::TextWrapped("%s could not be read, or is not a valid version 3 or version 4 DDOP.", errorFileName.c_str());
 		ImGui::Separator();
 
 		for (auto &logString : logger.logHistory)

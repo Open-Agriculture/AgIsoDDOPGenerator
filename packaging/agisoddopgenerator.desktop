@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=AgIsoDDOP Generator
+GenericName=DDOP Editor
+Comment=Create and edit ISO 11783 device descriptor object pools
+Icon=agisoddopgenerator
+Exec=AgIsoDDOPGenerator %f
+Terminal=false
+Categories=Development;Engineering;
+MimeType=application/x-iso11783-ddop;
+StartupWMClass=AgIsoDDOPGenerator

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-iso11783-ddop">
+    <comment>ISO 11783 device descriptor object pool</comment>
+    <!-- No <glob pattern="*.iop">: AgIsoVirtualTerminal pools share that extension, and a unique
+         glob match short-circuits magic, so a glob here would claim those too. -->
+    <magic priority="60">
+      <match type="string" value="DVC" offset="0"/>
+    </magic>
+  </mime-type>
+</mime-info>
