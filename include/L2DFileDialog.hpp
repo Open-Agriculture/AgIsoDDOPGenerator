@@ -63,7 +63,8 @@ namespace FileDialog
 	static std::string getPathWithTrailingSeparator(const std::string &path)
 	{
 		std::string ret = path;
-		if (path.back() != dirSep) {
+		if (path.back() != dirSep)
+		{
 			ret += std::filesystem::path::preferred_separator;
 		}
 		return ret;

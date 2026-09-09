@@ -1,6 +1,12 @@
 name: Build
 
-on: push
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_call:
 
 jobs:
   windows_build:
@@ -8,7 +14,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: Compile
@@ -16,31 +22,84 @@ jobs:
           mkdir build
           cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DCAN_DRIVER=None -DCMAKE_BUILD_TYPE=Release
           cmake --build build --config Release
+      - name: Package
+        run: Compress-Archive -Path build/Release/*.exe, build/Release/*.dll -DestinationPath windows-executable.zip
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-executable
-          path: |         
-             build/Release/*.dll
-             build/Release/*.exe
+          path: windows-executable.zip
+          if-no-files-found: error
+
+  macos_build:
+    name: MacOS Build
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - name: Compile
+        run: |
+          mkdir build
+          cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DCAN_DRIVER=None -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
+      - name: Package
+        run: (cd build && tar -czf ../macos-executable.tar.gz AgIsoDDOPGenerator libSDL2*.dylib)
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-executable
+          path: macos-executable.tar.gz
+          if-no-files-found: error
 
   ubuntu_build:
     name: Ubuntu Build
     runs-on: ubuntu-latest
+    # ubuntu-latest is now 24.04, whose glibc 2.39 links symbols that 22.04's glibc 2.35 does
+    # not have, so a binary built on the runner image will not start there. Building inside
+    # 22.04 keeps that floor pinned no matter what ubuntu-latest becomes next.
+    container: ubuntu:22.04
     steps:
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y build-essential cmake git ca-certificates libgl1-mesa-dev libxext-dev
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: Compile
         run: |
           mkdir build
-          sudo apt-get install -y libgl1-mesa-dev libxext-dev
           cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DCAN_DRIVER=None -DCMAKE_BUILD_TYPE=Release
           cmake --build build --config Release
+      - name: Package
+        run: tar -czf linux-executable.tar.gz -C build AgIsoDDOPGenerator
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-executable
-          path: |
-            build/AgIsoDDOPGenerator
+          path: linux-executable.tar.gz
+          if-no-files-found: error
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: ubuntu_build
+    steps:
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev libxext-dev
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - name: Configure
+        run: cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DCAN_DRIVER=None -DCMAKE_BUILD_TYPE=Release
+      - name: Compile tests
+        run: cmake --build build --target example_pool_test
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure
+

@@ -13,9 +13,9 @@
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_sdl2.h"
-#include "isobus/utility/iop_file_interface.hpp"
 #include "isobus/isobus/can_constants.hpp"
 #include "isobus/isobus/isobus_data_dictionary.hpp"
+#include "isobus/utility/iop_file_interface.hpp"
 #include "logsink.hpp"
 
 #include <cerrno>
@@ -23,6 +23,9 @@
 #include <cstring>
 #include <fstream>
 #include <sstream>
+
+constexpr std::uint16_t PROPRIETARY_DDI_RANGE_START = 57344;
+constexpr std::uint16_t PROPRIETARY_DDI_RANGE_END = 65534;
 
 void DDOPGeneratorGUI::start()
 {
@@ -138,7 +141,7 @@ void DDOPGeneratorGUI::start()
 		// GUI Main Code:
 		bool prevSaveAsModalState = saveAsModal;
 		bool prevSaveModalState = saveModal;
-		shouldExit = render_menu_bar();
+		shouldExit |= render_menu_bar();
 		render_open_file_menu();
 
 		if ((saveAsModal != prevSaveAsModalState) && saveAsModal)
@@ -705,6 +708,41 @@ void DDOPGeneratorGUI::render_object_tree()
 	}
 }
 
+template<typename T>
+void DDOPGeneratorGUI::render_ddi_setting(std::shared_ptr<T> object)
+{
+	ImGui::InputInt("DDI", &ddiBuffer);
+	if (ddiBuffer < 0)
+	{
+		ddiBuffer = 0;
+	}
+	else if (ddiBuffer > 0xFFFF)
+	{
+		ddiBuffer = 0xFFFF;
+	}
+
+	auto ddi = static_cast<std::uint16_t>(ddiBuffer);
+	const auto &entry = isobus::DataDictionary::get_entry(ddi);
+
+	if ((ddi >= PROPRIETARY_DDI_RANGE_START) && (ddi <= PROPRIETARY_DDI_RANGE_END))
+	{
+		ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "Proprietary DDI");
+	}
+	else if (entry.ddi == ddi)
+	{
+		ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "%s", entry.name.c_str());
+	}
+	else
+	{
+		ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Not in ISO 11783-11");
+	}
+
+	if (ddi != object->get_ddi())
+	{
+		object->set_ddi(ddi);
+	}
+}
+
 void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_controller_object::DeviceObject> object)
 {
 	ImGui::InputText("Designator", designatorBuffer, IM_ARRAYSIZE(designatorBuffer));
@@ -1115,20 +1153,7 @@ void DDOPGeneratorGUI::render_device_process_data_settings(std::shared_ptr<isobu
 		object->set_designator(designator);
 	}
 
-	ImGui::InputInt("DDI", &ddiBuffer);
-	if (ddiBuffer < 0)
-	{
-		ddiBuffer = 0;
-	}
-	else if (ddiBuffer > 0xFFFF)
-	{
-		ddiBuffer = 0xFFFF;
-	}
-
-	if (ddiBuffer != object->get_ddi())
-	{
-		object->set_ddi(ddiBuffer);
-	}
+	render_ddi_setting(object);
 
 	ImGui::BeginDisabled();
 	ImGui::InputInt("Object ID", &objectIDBuffer);
@@ -1224,20 +1249,7 @@ void DDOPGeneratorGUI::render_device_property_settings(std::shared_ptr<isobus::t
 		object->set_designator(designator);
 	}
 
-	ImGui::InputInt("DDI", &ddiBuffer);
-	if (ddiBuffer < 0)
-	{
-		ddiBuffer = 0;
-	}
-	else if (ddiBuffer > 0xFFFF)
-	{
-		ddiBuffer = 0xFFFF;
-	}
-
-	if (ddiBuffer != object->get_ddi())
-	{
-		object->set_ddi(ddiBuffer);
-	}
+	render_ddi_setting(object);
 
 	ImGui::InputInt("Value", &valueBuffer);
 	if (valueBuffer != object->get_value())
@@ -1907,16 +1919,16 @@ std::string DDOPGeneratorGUI::get_object_type_string(isobus::task_controller_obj
 std::string DDOPGeneratorGUI::get_object_display_name(std::shared_ptr<isobus::task_controller_object::Object> object)
 {
 	std::string displayName = object->get_designator();
-	
+
 	// Early return if designator is not empty and not the default "Designator" text
 	if (!displayName.empty() && displayName != "Designator")
 	{
 		return displayName;
 	}
-	
+
 	// If designator is empty or default, use appropriate fallback based on object type
 	const auto objectType = object->get_object_type();
-	
+
 	if (objectType == isobus::task_controller_object::ObjectTypes::DeviceProcessData)
 	{
 		auto dpd = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceProcessDataObject>(object);
@@ -1941,7 +1953,7 @@ std::string DDOPGeneratorGUI::get_object_display_name(std::shared_ptr<isobus::ta
 			displayName = get_element_type_string(det->get_type()) + " " + std::to_string(det->get_element_number());
 		}
 	}
-	
+
 	return displayName;
 }
 
