@@ -21,10 +21,49 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <map>
 #include <sstream>
 
 constexpr std::uint16_t PROPRIETARY_DDI_RANGE_START = 57344;
 constexpr std::uint16_t PROPRIETARY_DDI_RANGE_END = 65534;
+
+/// @brief Logs a warning for each device element number used by more than one device element
+/// @param[in] objectPool The device descriptor object pool to scan
+static void warn_on_duplicate_device_element_numbers(isobus::DeviceDescriptorObjectPool &objectPool)
+{
+	std::map<std::uint16_t, std::vector<std::uint16_t>> objectIDsByElementNumber;
+	bool foundDuplicate = false;
+
+	for (std::uint16_t i = 0; i < objectPool.size(); ++i)
+	{
+		auto deviceElement = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceElementObject>(objectPool.get_object_by_index(i));
+
+		if (nullptr != deviceElement)
+		{
+			objectIDsByElementNumber[deviceElement->get_element_number()].push_back(deviceElement->get_object_id());
+		}
+	}
+
+	for (const auto &elementNumberAndObjectIDs : objectIDsByElementNumber)
+	{
+		if (1 < elementNumberAndObjectIDs.second.size())
+		{
+			std::ostringstream objectIDs;
+
+			for (std::size_t i = 0; i < elementNumberAndObjectIDs.second.size(); ++i)
+			{
+				objectIDs << ((0 == i) ? "" : ", ") << elementNumberAndObjectIDs.second[i];
+			}
+			LOG_WARNING("[DDOP]: Device element number %u is used by more than one device element (object IDs %s).", elementNumberAndObjectIDs.first, objectIDs.str().c_str());
+			foundDuplicate = true;
+		}
+	}
+
+	if (foundDuplicate)
+	{
+		LOG_WARNING("[DDOP]: A TC addresses process data by element number, so each device element needs its own number.");
+	}
+}
 
 void DDOPGeneratorGUI::start()
 {
@@ -351,6 +390,7 @@ bool DDOPGeneratorGUI::render_menu_bar()
 
 					if (serializationSuccess)
 					{
+						warn_on_duplicate_device_element_numbers(*currentObjectPool);
 						shouldShowNoErrors = true;
 					}
 					else
@@ -440,6 +480,16 @@ bool DDOPGeneratorGUI::render_menu_bar()
 		ImGui::Text("No serialization errors detected.");
 		ImGui::Text("This does not mean the DDOP will be accepted by a TC");
 		ImGui::Text("it only confirms the structure of the DDOP is valid.");
+		if (!logger.logHistory.empty())
+		{
+			ImGui::Separator();
+			ImGui::Text("Warnings:");
+
+			for (auto &logString : logger.logHistory)
+			{
+				ImGui::Text("%s", logString.logText.c_str());
+			}
+		}
 
 		ImGui::SetItemDefaultFocus();
 		if (ImGui::Button("OK", ImVec2(120, 0)))
@@ -753,7 +803,7 @@ void DDOPGeneratorGUI::render_ddi_setting(std::shared_ptr<T> object)
 	}
 }
 
-void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_controller_object::DeviceObject> object)
+void DDOPGeneratorGUI::render_designator_setting(std::shared_ptr<isobus::task_controller_object::Object> object)
 {
 	ImGui::InputText("Designator", designatorBuffer, IM_ARRAYSIZE(designatorBuffer));
 
@@ -762,6 +812,36 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 	{
 		object->set_designator(designator);
 	}
+}
+
+void DDOPGeneratorGUI::render_object_id_setting(std::shared_ptr<isobus::task_controller_object::Object> object)
+{
+	ImGui::BeginDisabled();
+	ImGui::InputInt("Object ID", &objectIDBuffer);
+	if (objectIDBuffer < 0)
+	{
+		objectIDBuffer = 0;
+	}
+	else if (objectIDBuffer > 0xFFFF)
+	{
+		objectIDBuffer = 0xFFFF;
+	}
+
+	if ((objectIDBuffer != object->get_object_id()) &&
+	    (!currentObjectPool->get_object_by_id(objectIDBuffer)))
+	{
+		object->set_object_id(objectIDBuffer);
+	}
+	else
+	{
+		objectIDBuffer = object->get_object_id();
+	}
+	ImGui::EndDisabled();
+}
+
+void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_controller_object::DeviceObject> object)
+{
+	render_designator_setting(object);
 
 	ImGui::InputText("Software Version", softwareVersionBuffer, IM_ARRAYSIZE(softwareVersionBuffer));
 
@@ -1039,13 +1119,7 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 
 void DDOPGeneratorGUI::render_device_element_settings(std::shared_ptr<isobus::task_controller_object::DeviceElementObject> object)
 {
-	ImGui::InputText("Designator", designatorBuffer, IM_ARRAYSIZE(designatorBuffer));
-
-	auto designator = std::string(designatorBuffer);
-	if (designator != object->get_designator())
-	{
-		object->set_designator(designator);
-	}
+	render_designator_setting(object);
 
 	ImGui::InputInt("Element Number", &elementNumberBuffer);
 
@@ -1064,27 +1138,7 @@ void DDOPGeneratorGUI::render_device_element_settings(std::shared_ptr<isobus::ta
 		object->set_element_number(elementNumberBuffer);
 	}
 
-	ImGui::BeginDisabled();
-	ImGui::InputInt("Object ID", &objectIDBuffer);
-	if (objectIDBuffer < 0)
-	{
-		objectIDBuffer = 0;
-	}
-	else if (objectIDBuffer > 0xFFFF)
-	{
-		objectIDBuffer = 0xFFFF;
-	}
-
-	if ((objectIDBuffer != object->get_object_id()) &&
-	    (!currentObjectPool->get_object_by_id(objectIDBuffer)))
-	{
-		object->set_object_id(objectIDBuffer);
-	}
-	else
-	{
-		objectIDBuffer = object->get_object_id();
-	}
-	ImGui::EndDisabled();
+	render_object_id_setting(object);
 
 	ImGui::InputInt("Parent Object ID", &parentObjectBuffer);
 
@@ -1155,37 +1209,11 @@ void DDOPGeneratorGUI::render_device_element_settings(std::shared_ptr<isobus::ta
 
 void DDOPGeneratorGUI::render_device_process_data_settings(std::shared_ptr<isobus::task_controller_object::DeviceProcessDataObject> object)
 {
-	ImGui::InputText("Designator", designatorBuffer, IM_ARRAYSIZE(designatorBuffer));
-
-	auto designator = std::string(designatorBuffer);
-	if (designator != object->get_designator())
-	{
-		object->set_designator(designator);
-	}
+	render_designator_setting(object);
 
 	render_ddi_setting(object);
 
-	ImGui::BeginDisabled();
-	ImGui::InputInt("Object ID", &objectIDBuffer);
-	if (objectIDBuffer < 0)
-	{
-		objectIDBuffer = 0;
-	}
-	else if (objectIDBuffer > 0xFFFF)
-	{
-		objectIDBuffer = 0xFFFF;
-	}
-
-	if ((objectIDBuffer != object->get_object_id()) &&
-	    (!currentObjectPool->get_object_by_id(objectIDBuffer)))
-	{
-		object->set_object_id(objectIDBuffer);
-	}
-	else
-	{
-		objectIDBuffer = object->get_object_id();
-	}
-	ImGui::EndDisabled();
+	render_object_id_setting(object);
 
 	ImGui::InputInt("Presentation Object ID", &presentationObjectBuffer);
 	if (presentationObjectBuffer < 0)
@@ -1251,13 +1279,7 @@ void DDOPGeneratorGUI::render_device_process_data_settings(std::shared_ptr<isobu
 
 void DDOPGeneratorGUI::render_device_property_settings(std::shared_ptr<isobus::task_controller_object::DevicePropertyObject> object)
 {
-	ImGui::InputText("Designator", designatorBuffer, IM_ARRAYSIZE(designatorBuffer));
-
-	auto designator = std::string(designatorBuffer);
-	if (designator != object->get_designator())
-	{
-		object->set_designator(designator);
-	}
+	render_designator_setting(object);
 
 	render_ddi_setting(object);
 
@@ -1282,38 +1304,12 @@ void DDOPGeneratorGUI::render_device_property_settings(std::shared_ptr<isobus::t
 		object->set_device_value_presentation_object_id(presentationObjectBuffer);
 	}
 
-	ImGui::BeginDisabled();
-	ImGui::InputInt("Object ID", &objectIDBuffer);
-	if (objectIDBuffer < 0)
-	{
-		objectIDBuffer = 0;
-	}
-	else if (objectIDBuffer > 0xFFFF)
-	{
-		objectIDBuffer = 0xFFFF;
-	}
-
-	if ((objectIDBuffer != object->get_object_id()) &&
-	    (!currentObjectPool->get_object_by_id(objectIDBuffer)))
-	{
-		object->set_object_id(objectIDBuffer);
-	}
-	else
-	{
-		objectIDBuffer = object->get_object_id();
-	}
-	ImGui::EndDisabled();
+	render_object_id_setting(object);
 }
 
 void DDOPGeneratorGUI::render_device_presentation_settings(std::shared_ptr<isobus::task_controller_object::DeviceValuePresentationObject> object)
 {
-	ImGui::InputText("Designator", designatorBuffer, IM_ARRAYSIZE(designatorBuffer));
-
-	auto designator = std::string(designatorBuffer);
-	if (designator != object->get_designator())
-	{
-		object->set_designator(designator);
-	}
+	render_designator_setting(object);
 
 	ImGui::InputFloat("Scale", &scaleBuffer, 0.0f, 0.0f, "%.9f");
 	if (scaleBuffer > 100000000.0f)
@@ -1347,27 +1343,7 @@ void DDOPGeneratorGUI::render_device_presentation_settings(std::shared_ptr<isobu
 		object->set_number_of_decimals(numberDecimalsBuffer);
 	}
 
-	ImGui::BeginDisabled();
-	ImGui::InputInt("Object ID", &objectIDBuffer);
-	if (objectIDBuffer < 0)
-	{
-		objectIDBuffer = 0;
-	}
-	else if (objectIDBuffer > 0xFFFF)
-	{
-		objectIDBuffer = 0xFFFF;
-	}
-
-	if ((objectIDBuffer != object->get_object_id()) &&
-	    (!currentObjectPool->get_object_by_id(objectIDBuffer)))
-	{
-		object->set_object_id(objectIDBuffer);
-	}
-	else
-	{
-		objectIDBuffer = object->get_object_id();
-	}
-	ImGui::EndDisabled();
+	render_object_id_setting(object);
 }
 
 void DDOPGeneratorGUI::render_object_components(std::shared_ptr<isobus::task_controller_object::Object> object)
