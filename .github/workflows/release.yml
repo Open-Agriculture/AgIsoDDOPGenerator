@@ -1,0 +1,36 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    name: Build
+    uses: ./.github/workflows/build.yml
+
+  release_upload:
+    name: Release Packages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Packages
+        uses: actions/download-artifact@v7
+        with:
+          pattern: "*-executable"
+          merge-multiple: true
+      - name: Verify Packages
+        run: |
+          for os in linux macos; do
+            mkdir -p "verify/$os"
+            tar -xzf "$os-executable.tar.gz" -C "verify/$os"
+            test -x "verify/$os/AgIsoDDOPGenerator"
+          done
+      - name: Attach Packages To Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" linux-executable.tar.gz macos-executable.tar.gz windows-executable.zip --clobber
