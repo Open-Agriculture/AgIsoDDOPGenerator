@@ -10,6 +10,7 @@
 #include "L2DFileDialog.hpp"
 #include "SDL.h"
 #include "SDL_opengl.h"
+#include "ddop_validator.hpp"
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_sdl2.h"
@@ -17,53 +18,12 @@
 #include "isobus/utility/iop_file_interface.hpp"
 #include "logsink.hpp"
 
+#include <algorithm>
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
-#include <map>
 #include <sstream>
-
-constexpr std::uint16_t PROPRIETARY_DDI_RANGE_START = 57344;
-constexpr std::uint16_t PROPRIETARY_DDI_RANGE_END = 65534;
-
-/// @brief Logs a warning for each device element number used by more than one device element
-/// @param[in] objectPool The device descriptor object pool to scan
-static void warn_on_duplicate_device_element_numbers(isobus::DeviceDescriptorObjectPool &objectPool)
-{
-	std::map<std::uint16_t, std::vector<std::uint16_t>> objectIDsByElementNumber;
-	bool foundDuplicate = false;
-
-	for (std::uint16_t i = 0; i < objectPool.size(); ++i)
-	{
-		auto deviceElement = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceElementObject>(objectPool.get_object_by_index(i));
-
-		if (nullptr != deviceElement)
-		{
-			objectIDsByElementNumber[deviceElement->get_element_number()].push_back(deviceElement->get_object_id());
-		}
-	}
-
-	for (const auto &elementNumberAndObjectIDs : objectIDsByElementNumber)
-	{
-		if (1 < elementNumberAndObjectIDs.second.size())
-		{
-			std::ostringstream objectIDs;
-
-			for (std::size_t i = 0; i < elementNumberAndObjectIDs.second.size(); ++i)
-			{
-				objectIDs << ((0 == i) ? "" : ", ") << elementNumberAndObjectIDs.second[i];
-			}
-			LOG_WARNING("[DDOP]: Device element number %u is used by more than one device element (object IDs %s).", elementNumberAndObjectIDs.first, objectIDs.str().c_str());
-			foundDuplicate = true;
-		}
-	}
-
-	if (foundDuplicate)
-	{
-		LOG_WARNING("[DDOP]: A TC addresses process data by element number, so each device element needs its own number.");
-	}
-}
 
 void DDOPGeneratorGUI::start()
 {
@@ -294,8 +254,7 @@ void DDOPGeneratorGUI::start()
 bool DDOPGeneratorGUI::render_menu_bar()
 {
 	bool retVal = false;
-	bool shouldShowErrors = false;
-	bool shouldShowNoErrors = false;
+	bool shouldShowValidationResults = false;
 	bool shouldShowNewDDOP = false;
 	bool shouldShowAbout = false;
 
@@ -380,23 +339,13 @@ bool DDOPGeneratorGUI::render_menu_bar()
 				ImGui::BeginDisabled();
 			}
 
-			if (true == ImGui::MenuItem("Check for Errors", "Serialize the DDOP and display detected errors"))
+			if (true == ImGui::MenuItem("Check for Errors", "Check the DDOP against the ISO 11783-10 rules a TC applies"))
 			{
 				if ((nullptr != currentObjectPool) && currentPoolValid)
 				{
-					std::vector<std::uint8_t> binaryDDOP;
 					logger.logHistory.clear();
-					auto serializationSuccess = currentObjectPool->generate_binary_object_pool(binaryDDOP);
-
-					if (serializationSuccess)
-					{
-						warn_on_duplicate_device_element_numbers(*currentObjectPool);
-						shouldShowNoErrors = true;
-					}
-					else
-					{
-						shouldShowErrors = true;
-					}
+					validationFindings = validate_ddop(*currentObjectPool);
+					shouldShowValidationResults = true;
 				}
 			}
 			else if (!currentPoolValid)
@@ -458,13 +407,9 @@ bool DDOPGeneratorGUI::render_menu_bar()
 		ImGui::EndMainMenuBar();
 	}
 
-	if (shouldShowNoErrors)
+	if (shouldShowValidationResults)
 	{
-		ImGui::OpenPopup("No Serialization Errors");
-	}
-	else if (shouldShowErrors)
-	{
-		ImGui::OpenPopup("Serialization Errors");
+		ImGui::OpenPopup("Check Results");
 	}
 	else if (shouldShowNewDDOP)
 	{
@@ -475,38 +420,9 @@ bool DDOPGeneratorGUI::render_menu_bar()
 		ImGui::OpenPopup("About");
 	}
 
-	if (ImGui::BeginPopupModal("No Serialization Errors", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+	if (ImGui::BeginPopupModal("Check Results", NULL, ImGuiWindowFlags_AlwaysAutoResize))
 	{
-		ImGui::Text("No serialization errors detected.");
-		ImGui::Text("This does not mean the DDOP will be accepted by a TC");
-		ImGui::Text("it only confirms the structure of the DDOP is valid.");
-		if (!logger.logHistory.empty())
-		{
-			ImGui::Separator();
-			ImGui::Text("Warnings:");
-
-			for (auto &logString : logger.logHistory)
-			{
-				ImGui::Text("%s", logString.logText.c_str());
-			}
-		}
-
-		ImGui::SetItemDefaultFocus();
-		if (ImGui::Button("OK", ImVec2(120, 0)))
-		{
-			ImGui::CloseCurrentPopup();
-		}
-		ImGui::EndPopup();
-	}
-	if (ImGui::BeginPopupModal("Serialization Errors", NULL, ImGuiWindowFlags_AlwaysAutoResize))
-	{
-		ImGui::Text("Serialization errors detected.");
-		ImGui::Separator();
-
-		for (auto &logString : logger.logHistory)
-		{
-			ImGui::Text("%s", logString.logText.c_str());
-		}
+		render_validation_results();
 
 		ImGui::SetItemDefaultFocus();
 		if (ImGui::Button("OK", ImVec2(120, 0)))
@@ -547,6 +463,46 @@ bool DDOPGeneratorGUI::render_menu_bar()
 	}
 
 	return retVal;
+}
+
+void DDOPGeneratorGUI::render_validation_results()
+{
+	const std::size_t errorCount = static_cast<std::size_t>(std::count_if(validationFindings.begin(), validationFindings.end(), [](const DDOPValidationFinding &finding) {
+		return DDOPValidationFinding::Severity::Error == finding.severity;
+	}));
+
+	if (validationFindings.empty())
+	{
+		ImGui::Text("No problems found.");
+		ImGui::Text("The DDOP serializes, reads back as the same pool, and passes every ISO 11783-10 check this app makes.");
+	}
+	else
+	{
+		ImGui::Text("%zu error(s) and %zu warning(s).", errorCount, validationFindings.size() - errorCount);
+		ImGui::Text("An error stops the DDOP from being generated at all.");
+		ImGui::Text("A warning means it is generated, but a TC may reject it or read it as something else.");
+		ImGui::Separator();
+
+		ImGui::BeginChild("Findings", ImVec2(760.0f, 320.0f), true);
+
+		for (const auto &finding : validationFindings)
+		{
+			const bool isError = (DDOPValidationFinding::Severity::Error == finding.severity);
+
+			ImGui::PushStyleColor(ImGuiCol_Text, isError ? ImVec4(1.0f, 0.4f, 0.4f, 1.0f) : ImVec4(1.0f, 1.0f, 0.0f, 1.0f));
+			ImGui::TextWrapped("%s: %s", isError ? "Error" : "Warning", finding.message.c_str());
+			ImGui::PopStyleColor();
+		}
+		ImGui::EndChild();
+	}
+
+	if (!logger.logHistory.empty() && ImGui::CollapsingHeader("What the ISOBUS stack logged"))
+	{
+		for (auto &logString : logger.logHistory)
+		{
+			ImGui::TextWrapped("%s", logString.logText.c_str());
+		}
+	}
 }
 
 void DDOPGeneratorGUI::render_open_file_menu()
