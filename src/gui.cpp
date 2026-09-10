@@ -495,14 +495,6 @@ void DDOPGeneratorGUI::render_validation_results()
 		}
 		ImGui::EndChild();
 	}
-
-	if (!logger.logHistory.empty() && ImGui::CollapsingHeader("What the ISOBUS stack logged"))
-	{
-		for (auto &logString : logger.logHistory)
-		{
-			ImGui::TextWrapped("%s", logString.logText.c_str());
-		}
-	}
 }
 
 void DDOPGeneratorGUI::render_open_file_menu()
