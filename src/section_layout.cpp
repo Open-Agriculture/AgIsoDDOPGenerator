@@ -57,9 +57,8 @@ constexpr ImU32 OVERLAP_BORDER_COLOR = IM_COL32(245, 92, 82, 255);
 constexpr ImU32 GAP_FILL_COLOR = IM_COL32(224, 166, 48, 84);
 constexpr ImU32 GAP_BORDER_COLOR = IM_COL32(245, 194, 72, 255);
 
-/// @brief Builds a lookup of every device element in the pool keyed by its element number.
-/// The DDOP helper reports geometry by element number but the pool can only be searched by
-/// object ID or index, so without this every section lookup would rescan the whole pool.
+/// @brief Indexes the pool's device elements by element number.
+/// The helper reports elements by number, but the pool is only searchable by object ID or index.
 /// @param[in] pool The object pool to index
 /// @returns Every device element in the pool, keyed by element number
 static ElementsByNumber map_elements_by_number(isobus::DeviceDescriptorObjectPool &pool)
@@ -85,15 +84,17 @@ static ElementsByNumber map_elements_by_number(isobus::DeviceDescriptorObjectPoo
 /// @returns The DDI's number and name
 static const char *get_width_source(const isobus::DeviceDescriptorObjectPoolHelper::Section &section)
 {
+	const char *retVal = "DDI 68 Default";
+
 	if (section.actualWorkingWidth_mm.exists() && (section.width_mm.get() == section.actualWorkingWidth_mm.get()))
 	{
-		return "DDI 67 Actual";
+		retVal = "DDI 67 Actual";
 	}
-	if (section.maximumWorkingWidth_mm.exists() && (section.width_mm.get() == section.maximumWorkingWidth_mm.get()))
+	else if (section.maximumWorkingWidth_mm.exists() && (section.width_mm.get() == section.maximumWorkingWidth_mm.get()))
 	{
-		return "DDI 70 Maximum";
+		retVal = "DDI 70 Maximum";
 	}
-	return "DDI 68 Default";
+	return retVal;
 }
 
 /// @brief Converts one section reported by the DDOP helper into a drawable section.
@@ -112,15 +113,13 @@ static FlatSection flatten_section(const ElementsByNumber &elements,
 	retVal.yOffset_mm = section.yOffset_mm.get();
 
 	auto match = elements.find(section.elementNumber);
-	auto element = (elements.end() != match) ? match->second : nullptr;
-
-	if (nullptr != element)
+	if (elements.end() != match)
 	{
-		retVal.designator = element->get_designator();
-		retVal.objectID = element->get_object_id();
+		retVal.designator = match->second->get_designator();
+		retVal.objectID = match->second->get_object_id();
 	}
 
-	// The helper treats a stored zero width as absent, so the raw fields are checked to still flag it.
+	// The helper drops a zero width, so the raw fields are checked to still flag it as invalid.
 	if (section.actualWorkingWidth_mm.exists() || section.maximumWorkingWidth_mm.exists() || section.defaultWorkingWidth_mm.exists())
 	{
 		retVal.width_mm = section.width_mm.get();
@@ -176,8 +175,6 @@ static void render_offset_line(const char *label, std::int32_t offset_mm, bool e
 /// @param[in] toScale Whether the section is being drawn at its real offset and width
 static void render_section_tooltip(const FlatSection &section, bool toScale)
 {
-	const char *widthSource = section.widthSource;
-
 	ImGui::BeginTooltip();
 	ImGui::Text("Element %u%s%s", section.elementNumber, section.designator.empty() ? "" : " - ", section.designator.c_str());
 	ImGui::Separator();
@@ -186,11 +183,11 @@ static void render_section_tooltip(const FlatSection &section, bool toScale)
 
 	if (section.hasInvalidWidth)
 	{
-		ImGui::Text("Width (%s): invalid %.3f m; must be greater than zero", widthSource, section.width_mm / 1000.0f);
+		ImGui::Text("Width (%s): invalid %.3f m; must be greater than zero", section.widthSource, section.width_mm / 1000.0f);
 	}
 	else if (section.hasWidth)
 	{
-		ImGui::Text("Width (%s): %.3f m", widthSource, section.width_mm / 1000.0f);
+		ImGui::Text("Width (%s): %.3f m", section.widthSource, section.width_mm / 1000.0f);
 	}
 	else
 	{
@@ -217,8 +214,7 @@ static bool draw_sections(const std::vector<FlatSection> &sections, bool toScale
 	const float top = origin.y + BAR_TOP;
 	ImDrawList *drawList = ImGui::GetWindowDrawList();
 
-	// Every stock theme makes ImGuiCol_FrameBg translucent, which would let the object editor
-	// behind this window read straight through the diagram.
+	// Stock themes make FrameBg translucent, which would let the object editor show through.
 	ImVec4 canvasColor = ImGui::GetStyleColorVec4(ImGuiCol_FrameBg);
 	canvasColor.w = 1.0f;
 	drawList->AddRectFilled(origin, ImVec2(origin.x + canvasWidth, origin.y + CANVAS_HEIGHT), ImGui::GetColorU32(canvasColor));
@@ -316,9 +312,7 @@ static bool draw_sections(const std::vector<FlatSection> &sections, bool toScale
 		                  ImVec2((origin.x + canvasWidth) - CANVAS_PADDING, rulerY),
 		                  ImGui::GetColorU32(ImGuiCol_TextDisabled));
 
-		// A DDOP may describe anything from a hand boom to an implement kilometres wide, so a
-		// fixed step leaves the small pools with a lone zero and smears the large ones. Grow
-		// through 0.1, 0.2, 0.5, 1, 2, 5 m and so on until the labels are far enough to read.
+		// Booms range from centimetres to kilometres, so grow the step 0.1, 0.2, 0.5, 1 m... until labels fit.
 		float labelStep_mm = MINIMUM_LABEL_STEP_MM;
 
 		for (int i = 0; (i < MAXIMUM_LABEL_STEPS) && ((labelStep_mm * scale) < MINIMUM_LABEL_SPACING); i++)
@@ -360,8 +354,7 @@ static bool draw_sections(const std::vector<FlatSection> &sections, bool toScale
 
 	if (hoveredIndex < sections.size())
 	{
-		// Only the topmost section may claim the cursor. A second BeginTooltip in the same frame
-		// reopens the same tooltip window, so overlapping sections would append into one another.
+		// Only one section may claim the cursor: a second BeginTooltip in a frame appends to the first.
 		render_section_tooltip(sections[hoveredIndex], toScale);
 
 		if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && (0xFFFF != sections[hoveredIndex].objectID))
@@ -402,13 +395,11 @@ static void render_boom_offset(const char *label, const isobus::DeviceDescriptor
 }
 
 /// @brief Renders the heading and canvas for one boom.
-/// @param[in] pool The object pool the boom belongs to
 /// @param[in] elements The pool's elements keyed by element number
 /// @param[in] boom The boom reported by the helper
 /// @param[in,out] selectedObjectID The selected object, updated when a section is clicked
 /// @returns true when a section click changed the selected object
-static bool render_boom(isobus::DeviceDescriptorObjectPool &pool,
-                        const ElementsByNumber &elements,
+static bool render_boom(const ElementsByNumber &elements,
                         const isobus::DeviceDescriptorObjectPoolHelper::Boom &boom,
                         std::uint16_t &selectedObjectID)
 {
@@ -421,62 +412,56 @@ static bool render_boom(isobus::DeviceDescriptorObjectPool &pool,
 	render_boom_offset("Fore/aft", boom.xOffset_mm);
 	render_boom_offset("Lateral", boom.yOffset_mm);
 
+	bool retVal = false;
+
 	if (sections.empty())
 	{
 		ImGui::TextDisabled("This function element has no section elements to draw.");
-		return false;
 	}
-
-	const bool toScale = std::all_of(sections.cbegin(), sections.cend(), [](const FlatSection &section) {
-		return section.hasYOffset && section.hasWidth;
-	});
-	const bool hasInvalidWidth = std::any_of(sections.cbegin(), sections.cend(), [](const FlatSection &section) {
-		return section.hasInvalidWidth;
-	});
-
-	if (!toScale)
+	else
 	{
-		std::sort(sections.begin(), sections.end(), [](const FlatSection &left, const FlatSection &right) {
-			return left.elementNumber < right.elementNumber;
+		const bool toScale = std::all_of(sections.cbegin(), sections.cend(), [](const FlatSection &section) {
+			return section.hasYOffset && section.hasWidth;
 		});
-	}
+		ImGui::TextUnformatted("Rear view - lateral (Y) axis only");
 
-	ImGui::TextUnformatted("Rear view - lateral (Y) axis only");
+		if (std::any_of(sections.cbegin(), sections.cend(), [](const FlatSection &section) { return section.hasInvalidWidth; }))
+		{
+			ImGui::TextColored(ImVec4(0.95f, 0.38f, 0.30f, 1.0f), "INVALID GEOMETRY - section widths must be greater than zero");
+		}
 
-	if (hasInvalidWidth)
-	{
-		ImGui::TextColored(ImVec4(0.95f, 0.38f, 0.30f, 1.0f), "INVALID GEOMETRY - section widths must be greater than zero");
+		if (!toScale)
+		{
+			ImGui::TextUnformatted("SCHEMATIC - not to scale");
+			std::sort(sections.begin(), sections.end(), [](const FlatSection &left, const FlatSection &right) {
+				return left.elementNumber < right.elementNumber;
+			});
+		}
+		retVal = draw_sections(sections, toScale, selectedObjectID);
 	}
-
-	if (!toScale)
-	{
-		ImGui::TextUnformatted("SCHEMATIC - not to scale");
-	}
-	return draw_sections(sections, toScale, selectedObjectID);
+	return retVal;
 }
 
 bool render_section_layout(isobus::DeviceDescriptorObjectPool &pool, std::uint16_t &selectedObjectID)
 {
 	auto implement = isobus::DeviceDescriptorObjectPoolHelper::get_implement_geometry(pool);
 
+	bool selectionChanged = false;
+
 	if (implement.booms.empty())
 	{
 		ImGui::TextWrapped("This DDOP has no device object, so it describes no geometry.");
-		return false;
 	}
-
-	auto elements = map_elements_by_number(pool);
-	bool selectionChanged = false;
-
-	for (std::size_t i = 0; i < implement.booms.size(); i++)
+	else
 	{
-		ImGui::PushID(static_cast<int>(i));
+		auto elements = map_elements_by_number(pool);
 
-		if (render_boom(pool, elements, implement.booms[i], selectedObjectID))
+		for (std::size_t i = 0; i < implement.booms.size(); i++)
 		{
-			selectionChanged = true;
+			ImGui::PushID(static_cast<int>(i));
+			selectionChanged = render_boom(elements, implement.booms[i], selectedObjectID) || selectionChanged;
+			ImGui::PopID();
 		}
-		ImGui::PopID();
 	}
 	return selectionChanged;
 }

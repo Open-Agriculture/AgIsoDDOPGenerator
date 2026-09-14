@@ -395,15 +395,7 @@ bool DDOPGeneratorGUI::render_menu_bar()
 
 		if (true == ImGui::BeginMenu("View"))
 		{
-			if (!currentPoolValid)
-			{
-				ImGui::BeginDisabled();
-			}
-			ImGui::MenuItem("Section Layout", "Draw the sections across the lateral (Y) axis", &showSectionLayout);
-			if (!currentPoolValid)
-			{
-				ImGui::EndDisabled();
-			}
+			ImGui::MenuItem("Section Layout", "Draw the sections across the lateral (Y) axis", &showSectionLayout, currentPoolValid);
 			ImGui::EndMenu();
 		}
 
