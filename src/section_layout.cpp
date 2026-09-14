@@ -10,7 +10,6 @@
 
 #include "imgui.h"
 #include "isobus/isobus/isobus_device_descriptor_object_pool_helpers.hpp"
-#include "isobus/isobus/isobus_standard_data_description_indices.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -35,7 +34,7 @@ struct FlatSection
 	bool hasYOffset = false;
 	bool hasWidth = false;
 	bool hasInvalidWidth = false;
-	bool usesMaximumWidth = false;
+	const char *widthSource = "";
 };
 
 using ElementsByNumber = std::map<std::uint16_t, std::shared_ptr<isobus::task_controller_object::DeviceElementObject>>;
@@ -81,48 +80,27 @@ static ElementsByNumber map_elements_by_number(isobus::DeviceDescriptorObjectPoo
 	return retVal;
 }
 
-/// @brief Reads a static device property value off an element by DDI.
-/// @param[in] pool The object pool the element belongs to
-/// @param[in] element The element whose properties to search
-/// @param[in] ddi The DDI to look for
-/// @param[out] value The property's value, untouched if the element has no such property
-/// @returns true if the element has a device property with that DDI
-static bool get_property_value(isobus::DeviceDescriptorObjectPool &pool,
-                               const std::shared_ptr<isobus::task_controller_object::DeviceElementObject> &element,
-                               isobus::DataDescriptionIndex ddi,
-                               std::int32_t &value)
+/// @brief Names the working width DDI the helper took a section's width from.
+/// @param[in] section The section reported by the helper
+/// @returns The DDI's number and name
+static const char *get_width_source(const isobus::DeviceDescriptorObjectPoolHelper::Section &section)
 {
-	if (nullptr == element)
+	if (section.actualWorkingWidth_mm.exists() && (section.width_mm.get() == section.actualWorkingWidth_mm.get()))
 	{
-		return false;
+		return "DDI 67 Actual";
 	}
-
-	for (std::uint16_t i = 0; i < element->get_number_child_objects(); i++)
+	if (section.maximumWorkingWidth_mm.exists() && (section.width_mm.get() == section.maximumWorkingWidth_mm.get()))
 	{
-		auto child = pool.get_object_by_id(element->get_child_object_id(i));
-
-		if ((nullptr != child) &&
-		    (isobus::task_controller_object::ObjectTypes::DeviceProperty == child->get_object_type()))
-		{
-			auto property = std::static_pointer_cast<isobus::task_controller_object::DevicePropertyObject>(child);
-
-			if (static_cast<std::uint16_t>(ddi) == property->get_ddi())
-			{
-				value = property->get_value();
-				return true;
-			}
-		}
+		return "DDI 70 Maximum";
 	}
-	return false;
+	return "DDI 68 Default";
 }
 
 /// @brief Converts one section reported by the DDOP helper into a drawable section.
-/// @param[in] pool The object pool the section belongs to
 /// @param[in] elements The pool's elements keyed by element number
 /// @param[in] section The section reported by the helper
 /// @returns The section, ready to draw
-static FlatSection flatten_section(isobus::DeviceDescriptorObjectPool &pool,
-                                   const ElementsByNumber &elements,
+static FlatSection flatten_section(const ElementsByNumber &elements,
                                    const isobus::DeviceDescriptorObjectPoolHelper::Section &section)
 {
 	FlatSection retVal;
@@ -142,53 +120,36 @@ static FlatSection flatten_section(isobus::DeviceDescriptorObjectPool &pool,
 		retVal.objectID = element->get_object_id();
 	}
 
-	if (section.width_mm.exists())
+	// The helper treats a stored zero width as absent, so the raw fields are checked to still flag it.
+	if (section.actualWorkingWidth_mm.exists() || section.maximumWorkingWidth_mm.exists() || section.defaultWorkingWidth_mm.exists())
 	{
 		retVal.width_mm = section.width_mm.get();
+		retVal.widthSource = get_width_source(section);
+		retVal.hasWidth = (0 < retVal.width_mm);
+		retVal.hasInvalidWidth = !retVal.hasWidth;
 	}
-	else
-	{
-		// The helper only reads DDI 67, so implement sections that declare their width with the
-		// static DDI 70 maximum would otherwise have no width at all. Drop this once AgIsoStack
-		// #530 or #618 merges.
-		std::int32_t width = 0;
-
-		if (get_property_value(pool, element, isobus::DataDescriptionIndex::MaximumWorkingWidth, width))
-		{
-			retVal.width_mm = width;
-			retVal.usesMaximumWidth = true;
-		}
-		else
-		{
-			return retVal;
-		}
-	}
-	retVal.hasWidth = (0 < retVal.width_mm);
-	retVal.hasInvalidWidth = !retVal.hasWidth;
 	return retVal;
 }
 
 /// @brief Collects every section of a boom, including those held by its sub booms.
-/// @param[in] pool The object pool the boom belongs to
 /// @param[in] elements The pool's elements keyed by element number
 /// @param[in] boom The boom reported by the helper
 /// @returns Every section of the boom, ready to draw
-static std::vector<FlatSection> flatten_boom_sections(isobus::DeviceDescriptorObjectPool &pool,
-                                                      const ElementsByNumber &elements,
+static std::vector<FlatSection> flatten_boom_sections(const ElementsByNumber &elements,
                                                       const isobus::DeviceDescriptorObjectPoolHelper::Boom &boom)
 {
 	std::vector<FlatSection> retVal;
 
 	for (const auto &section : boom.sections)
 	{
-		retVal.push_back(flatten_section(pool, elements, section));
+		retVal.push_back(flatten_section(elements, section));
 	}
 
 	for (const auto &subBoom : boom.subBooms)
 	{
 		for (const auto &section : subBoom.sections)
 		{
-			retVal.push_back(flatten_section(pool, elements, section));
+			retVal.push_back(flatten_section(elements, section));
 		}
 	}
 	return retVal;
@@ -215,7 +176,7 @@ static void render_offset_line(const char *label, std::int32_t offset_mm, bool e
 /// @param[in] toScale Whether the section is being drawn at its real offset and width
 static void render_section_tooltip(const FlatSection &section, bool toScale)
 {
-	const char *widthSource = section.usesMaximumWidth ? "DDI 70 Maximum" : "DDI 67 Actual";
+	const char *widthSource = section.widthSource;
 
 	ImGui::BeginTooltip();
 	ImGui::Text("Element %u%s%s", section.elementNumber, section.designator.empty() ? "" : " - ", section.designator.c_str());
@@ -451,7 +412,7 @@ static bool render_boom(isobus::DeviceDescriptorObjectPool &pool,
                         const isobus::DeviceDescriptorObjectPoolHelper::Boom &boom,
                         std::uint16_t &selectedObjectID)
 {
-	auto sections = flatten_boom_sections(pool, elements, boom);
+	auto sections = flatten_boom_sections(elements, boom);
 	auto match = elements.find(boom.elementNumber);
 	std::string designator = (elements.end() != match) ? match->second->get_designator() : std::string();
 
