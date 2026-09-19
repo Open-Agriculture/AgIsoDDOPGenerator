@@ -15,6 +15,7 @@ When used in combination with AgIsoStack (or any other TC client), it provides a
 * Supports dynamically editing any DDOP or creating one from scratch
 * Compatible with both TC version 3 and 4
 * Basic object pool error checking to help you find errors before loading onto a TC
+* Saves DDOPs as `.ddop` by default and still opens `.iop` DDOPs from 1.2.0 and earlier (the extension is a convention; ISO 11783 only defines the binary layout)
 * Completely free and open source alternative to many paid products!
 
 ### Releases
