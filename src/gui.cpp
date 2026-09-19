@@ -1935,7 +1935,7 @@ void DDOPGeneratorGUI::render_save()
 
 					if (fileName.empty())
 					{
-						fileName = "device_descriptor_object_pool.iop";
+						fileName = "device_descriptor_object_pool.ddop";
 					}
 					std::ofstream outFile(fileName, std::ios_base::trunc | std::ios_base::binary);
 

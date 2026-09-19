@@ -23,7 +23,7 @@ int main(int argc, char **argv)
 
 	if (!validArgumentCount || !validVersion)
 	{
-		std::fprintf(stderr, "usage: %s <path to .iop> [task controller version: 3 or 4 (default)]\n", argv[0]);
+		std::fprintf(stderr, "usage: %s <path to .ddop> [task controller version: 3 or 4 (default)]\n", argv[0]);
 		return 1;
 	}
 
