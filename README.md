@@ -14,7 +14,7 @@ When used in combination with AgIsoStack (or any other TC client), it provides a
 
 * Supports dynamically editing any DDOP or creating one from scratch
 * Compatible with both TC version 3 and 4, and detects which one a file uses when opening it
-* Opens a DDOP passed on the command line, so it can be registered as your `.iop` handler
+* Opens a DDOP passed on the command line, so it can be registered as your `.ddop` handler
 * Basic object pool error checking to help you find errors before loading onto a TC
 * Saves DDOPs as `.ddop` by default and still opens `.iop` DDOPs from 1.2.0 and earlier (the extension is a convention; ISO 11783 only defines the binary layout)
 * Completely free and open source alternative to many paid products!
@@ -50,9 +50,10 @@ the `shared-mime-info`, `desktop-file-utils`, `libgtk-3-bin` and `xdg-utils` pac
 `cmake --install` installs the same files under `${CMAKE_INSTALL_PREFIX}/share` and does not refresh
 the caches.
 
-A DDOP is recognized by its `DVC` header, not the `.iop` extension, which
-[AgIsoVirtualTerminal](https://github.com/Open-Agriculture/AgIsoVirtualTerminal) pools also use. Pools
-starting with another object are not recognized.
+A `.ddop` file is recognized by its name. A `.iop` DDOP saved by an earlier version is recognized by
+its `DVC` header instead, because
+[AgIsoVirtualTerminal](https://github.com/Open-Agriculture/AgIsoVirtualTerminal) pools use that
+extension too. Pools starting with another object are not recognized.
 
 Windows and macOS have no installer or app bundle yet, so pass the file on the command line.
 
