@@ -6,7 +6,7 @@ set(CMAKE_OSX_DEPLOYMENT_TARGET
 
 project(
   AgIsoDDOPGenerator
-  VERSION 1.1.1
+  VERSION 1.2.0
   LANGUAGES CXX
   DESCRIPTION "DDOP Generator based on AgIsoStack++")
 
@@ -53,6 +53,9 @@ target_include_directories(
 target_link_libraries(
   AgIsoDDOPGenerator PRIVATE isobus::Isobus isobus::Utility OpenGL::GL SDL2
                              SDL2main ${CMAKE_DL_LIBS})
+
+enable_testing()
+add_subdirectory(test)
 
 install(TARGETS AgIsoDDOPGenerator RUNTIME DESTINATION bin)
 
