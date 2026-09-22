@@ -1,7 +1,7 @@
 //================================================================================================
 /// @file example_pool_test.cpp
 ///
-/// @brief Checks that the DDOP shipped with this repository survives a load/save cycle
+/// @brief Checks that a DDOP shipped with this repository survives a load/save cycle
 /// @author Sujan Dumaru
 ///
 /// @copyright 2026 The Open-Agriculture developers
@@ -12,13 +12,18 @@
 #include <cstdio>
 #include <fstream>
 #include <iterator>
+#include <string>
 #include <vector>
 
 int main(int argc, char **argv)
 {
-	if (2 != argc)
+	const std::string version = (3 == argc) ? argv[2] : "4";
+	const bool validArgumentCount = (2 == argc) || (3 == argc);
+	const bool validVersion = ("3" == version) || ("4" == version);
+
+	if (!validArgumentCount || !validVersion)
 	{
-		std::fprintf(stderr, "usage: %s <path to EXAMPLE.iop>\n", argv[0]);
+		std::fprintf(stderr, "usage: %s <path to .ddop> [task controller version: 3 or 4 (default)]\n", argv[0]);
 		return 1;
 	}
 
@@ -34,7 +39,7 @@ int main(int argc, char **argv)
 	                                          std::istreambuf_iterator<char>());
 	std::vector<std::uint8_t> loadedBytes = fileBytes;
 
-	isobus::DeviceDescriptorObjectPool pool(3);
+	isobus::DeviceDescriptorObjectPool pool(("4" == version) ? 4 : 3);
 
 	if (!pool.deserialize_binary_object_pool(loadedBytes, isobus::NAME(0)))
 	{
