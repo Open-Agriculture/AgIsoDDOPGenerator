@@ -27,6 +27,16 @@
 constexpr std::uint16_t PROPRIETARY_DDI_RANGE_START = 57344;
 constexpr std::uint16_t PROPRIETARY_DDI_RANGE_END = 65534;
 
+/// @brief Checks if an object is a type that a device element is allowed to reference as a child
+/// @param[in] object The object to check, which may be null
+/// @returns true if the object is a device process data or device property object
+static bool can_be_device_element_child(const std::shared_ptr<isobus::task_controller_object::Object> &object)
+{
+	return (nullptr != object) &&
+	  ((isobus::task_controller_object::ObjectTypes::DeviceProcessData == object->get_object_type()) ||
+	   (isobus::task_controller_object::ObjectTypes::DeviceProperty == object->get_object_type()));
+}
+
 /// @brief Logs a warning for each device element number used by more than one device element
 /// @param[in] objectPool The device descriptor object pool to scan
 static void warn_on_duplicate_device_element_numbers(isobus::DeviceDescriptorObjectPool &objectPool)
@@ -1189,28 +1199,43 @@ void DDOPGeneratorGUI::render_device_element_settings(std::shared_ptr<isobus::ta
 	if (nullptr != currentObjectPool)
 	{
 		auto selectedObject = currentObjectPool->get_object_by_index(addChildComboIndex);
+
+		if (!can_be_device_element_child(selectedObject))
+		{
+			selectedObject = nullptr;
+
+			for (std::uint16_t n = 0; n < currentObjectPool->size(); n++)
+			{
+				if (can_be_device_element_child(currentObjectPool->get_object_by_index(n)))
+				{
+					addChildComboIndex = n;
+					selectedObject = currentObjectPool->get_object_by_index(n);
+					break;
+				}
+			}
+		}
+
 		if (nullptr != selectedObject)
 		{
 			if (ImGui::BeginCombo("Add Child Object Reference", selectedObject->get_designator().c_str()))
 			{
-				for (int n = 0; n < currentObjectPool->size(); n++)
+				for (std::uint16_t n = 0; n < currentObjectPool->size(); n++)
 				{
-					const bool is_selected = (addChildComboIndex == n);
-					selectedObject = currentObjectPool->get_object_by_index(n);
-					if ((nullptr != selectedObject) &&
-					    (selectedObject->get_object_type() != isobus::task_controller_object::ObjectTypes::Device) &&
-					    (selectedObject->get_object_type() != isobus::task_controller_object::ObjectTypes::DeviceElement))
+					auto childObject = currentObjectPool->get_object_by_index(n);
+
+					if (can_be_device_element_child(childObject))
 					{
-						if (ImGui::Selectable((selectedObject->get_designator() + " (" + std::to_string(selectedObject->get_object_id()) + ")").c_str(), is_selected))
+						const bool is_selected = (addChildComboIndex == n);
+
+						if (ImGui::Selectable((childObject->get_designator() + " (" + std::to_string(childObject->get_object_id()) + ")").c_str(), is_selected))
 						{
 							addChildComboIndex = n;
 						}
-					}
 
-					// Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
-					if (is_selected)
-					{
-						ImGui::SetItemDefaultFocus();
+						if (is_selected)
+						{
+							ImGui::SetItemDefaultFocus();
+						}
 					}
 				}
 				ImGui::EndCombo();
@@ -1218,13 +1243,12 @@ void DDOPGeneratorGUI::render_device_element_settings(std::shared_ptr<isobus::ta
 
 			if (ImGui::Button("Add Object"))
 			{
-				auto childID = currentObjectPool->get_object_by_index(addChildComboIndex)->get_object_id();
-				object->add_reference_to_child_object(childID);
+				object->add_reference_to_child_object(selectedObject->get_object_id());
 			}
 		}
 		else
 		{
-			addChildComboIndex = 0;
+			ImGui::Text("Add a device process data or device property object to attach a child to this element.");
 		}
 	}
 }
