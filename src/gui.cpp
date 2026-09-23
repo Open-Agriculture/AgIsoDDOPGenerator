@@ -893,7 +893,7 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 	languageCode = std::string(languageCodeBuffer);
 
 	{
-		const char *strings[] = { "Comma", "Decimal", "Reserved", "N/A" };
+		const char *strings[] = { "24 hour", "12 hour (am/pm)", "Reserved", "N/A" };
 		if (ImGui::BeginListBox("Time Format", { 110, 100 }))
 		{
 			for (int i = 0; i < IM_ARRAYSIZE(strings); i++)
@@ -902,6 +902,28 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 				if (ImGui::Selectable(strings[i], is_selected))
 				{
 					timeFormat = static_cast<isobus::LanguageCommandInterface::TimeFormats>(i);
+				}
+
+				if (is_selected)
+				{
+					ImGui::SetItemDefaultFocus();
+				}
+			}
+			ImGui::EndListBox();
+		}
+	}
+
+	{
+		const char *strings[] = { "Comma", "Point", "Reserved", "N/A" };
+		ImGui::SameLine();
+		if (ImGui::BeginListBox("Decimal Symbol", { 110, 100 }))
+		{
+			for (int i = 0; i < IM_ARRAYSIZE(strings); i++)
+			{
+				const bool is_selected = (static_cast<std::uint8_t>(decimalSymbol) == i);
+				if (ImGui::Selectable(strings[i], is_selected))
+				{
+					decimalSymbol = static_cast<isobus::LanguageCommandInterface::DecimalSymbols>(i);
 				}
 
 				if (is_selected)
@@ -937,7 +959,6 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 
 	{
 		const char *strings[] = { "Metric", "Imperial/US", "Reserved", "N/A" };
-		ImGui::SameLine();
 		if (ImGui::BeginListBox("Distance Units", { 110, 100 }))
 		{
 			for (int i = 0; i < IM_ARRAYSIZE(strings); i++)
@@ -959,6 +980,7 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 
 	{
 		const char *strings[] = { "Metric", "Imperial/US", "Reserved", "N/A" };
+		ImGui::SameLine();
 		if (ImGui::BeginListBox("Area Units", { 110, 100 }))
 		{
 			for (int i = 0; i < IM_ARRAYSIZE(strings); i++)
@@ -1002,7 +1024,6 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 
 	{
 		const char *strings[] = { "Metric", "Imperial", "US", "N/A" };
-		ImGui::SameLine();
 		if (ImGui::BeginListBox("Mass Units", { 110, 100 }))
 		{
 			for (int i = 0; i < IM_ARRAYSIZE(strings); i++)
@@ -1024,6 +1045,7 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 
 	{
 		const char *strings[] = { "Metric", "Imperial/US", "Reserved", "N/A" };
+		ImGui::SameLine();
 		if (ImGui::BeginListBox("Force Units", { 110, 100 }))
 		{
 			for (int i = 0; i < IM_ARRAYSIZE(strings); i++)
