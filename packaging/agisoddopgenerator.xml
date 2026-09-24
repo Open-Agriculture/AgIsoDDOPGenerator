@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-iso11783-ddop">
+    <comment>ISO 11783 device descriptor object pool</comment>
+    <glob pattern="*.ddop"/>
+    <!-- No *.iop glob: AgIsoVirtualTerminal pools share it. The magic still catches older .iop DDOPs. -->
+    <magic priority="60">
+      <match type="string" value="DVC" offset="0"/>
+    </magic>
+  </mime-type>
+</mime-info>
