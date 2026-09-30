@@ -7,7 +7,9 @@
 /// @copyright 2026 The Open-Agriculture developers
 //================================================================================================
 #include "isobus/isobus/isobus_device_descriptor_object_pool.hpp"
+#include "task_data_import.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <fstream>
@@ -65,6 +67,33 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	std::printf("PASS: %u objects, %zu bytes, byte-identical round trip\n", pool.size(), savedBytes.size());
+	std::string exportedXml;
+	isobus::DeviceDescriptorObjectPool importedPool(pool.get_task_controller_compatibility_level());
+	std::vector<std::uint8_t> importedBytes;
+	std::string reexportedXml;
+
+	if (!pool.generate_task_data_iso_xml(exportedXml) ||
+	    (1 != list_task_data_devices(exportedXml).size()) ||
+	    !import_task_data_device(exportedXml, 0, importedPool) ||
+	    !importedPool.generate_binary_object_pool(importedBytes) ||
+	    !importedPool.generate_task_data_iso_xml(reexportedXml))
+	{
+		std::fprintf(stderr, "FAIL: %s did not survive an ISOXML export and import\n", argv[1]);
+		return 1;
+	}
+
+	if (exportedXml != reexportedXml)
+	{
+		const auto offset = static_cast<std::size_t>(std::mismatch(exportedXml.begin(), exportedXml.end(), reexportedXml.begin(), reexportedXml.end()).first - exportedXml.begin());
+		std::fprintf(stderr,
+		             "FAIL: re-exporting the imported ISOXML of %s differs at byte %zu:\n%.60s\n%.60s\n",
+		             argv[1],
+		             offset,
+		             exportedXml.c_str() + offset,
+		             reexportedXml.c_str() + offset);
+		return 1;
+	}
+
+	std::printf("PASS: %u objects, %zu bytes, byte-identical round trip, identical ISOXML round trip\n", pool.size(), savedBytes.size());
 	return 0;
 }
