@@ -1143,6 +1143,25 @@ void DDOPGeneratorGUI::render_device_element_settings(std::shared_ptr<isobus::ta
 {
 	render_designator_setting(object);
 
+	if (true == ImGui::BeginCombo("Type", get_element_type_string(object->get_type()).c_str()))
+	{
+		for (std::uint8_t i = static_cast<std::uint8_t>(isobus::task_controller_object::DeviceElementObject::Type::Device); i <= static_cast<std::uint8_t>(isobus::task_controller_object::DeviceElementObject::Type::NavigationReference); i++)
+		{
+			const auto type = static_cast<isobus::task_controller_object::DeviceElementObject::Type>(i);
+			const bool is_selected = (object->get_type() == type);
+			if (ImGui::Selectable(get_element_type_string(type).c_str(), is_selected))
+			{
+				object->set_type(type);
+			}
+
+			if (is_selected)
+			{
+				ImGui::SetItemDefaultFocus();
+			}
+		}
+		ImGui::EndCombo();
+	}
+
 	ImGui::InputInt("Element Number", &elementNumberBuffer);
 
 	if (elementNumberBuffer > 4095)
