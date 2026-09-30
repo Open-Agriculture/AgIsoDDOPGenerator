@@ -22,7 +22,7 @@ When used in combination with AgIsoStack (or any other TC client), it provides a
 
 ### Using it
 
-**File → New** starts an empty DDOP and asks for your device information; **File → Open** loads an existing one. `EXAMPLE.ddop` and `EXAMPLE_V4.ddop` in this repository are there to open and poke at.
+**File → New** starts an empty DDOP and asks for your device information; **File → Open** loads an existing one. `EXAMPLE.ddop`, `EXAMPLE_V4.ddop` and `TASKDATA.XML` in [examples/](examples/) are there to open and poke at; the XML goes in through **File → Import ISOXML**.
 
 **File → Import ISOXML** reads the device description in an ISOXML TASKDATA.XML, and asks you to pick a device if the file holds several. **File → Save** then asks for a new file name, as it writes a binary DDOP.
 

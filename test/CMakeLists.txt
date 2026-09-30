@@ -10,9 +10,13 @@ foreach(test_target example_pool_test task_data_import_test)
 endforeach()
 
 add_test(NAME example_v3_pool_round_trip
-         COMMAND example_pool_test "${PROJECT_SOURCE_DIR}/EXAMPLE.ddop" 3)
+         COMMAND example_pool_test
+                 "${PROJECT_SOURCE_DIR}/examples/EXAMPLE.ddop" 3)
 
 add_test(NAME example_v4_pool_round_trip
-         COMMAND example_pool_test "${PROJECT_SOURCE_DIR}/EXAMPLE_V4.ddop" 4)
+         COMMAND example_pool_test
+                 "${PROJECT_SOURCE_DIR}/examples/EXAMPLE_V4.ddop" 4)
 
-add_test(NAME task_data_import COMMAND task_data_import_test)
+add_test(NAME task_data_import
+         COMMAND task_data_import_test
+                 "${PROJECT_SOURCE_DIR}/examples/TASKDATA.XML")
