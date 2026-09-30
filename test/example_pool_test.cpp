@@ -6,12 +6,14 @@
 ///
 /// @copyright 2026 The Open-Agriculture developers
 //================================================================================================
+
 #include "isobus/isobus/isobus_device_descriptor_object_pool.hpp"
 #include "task_data_import.hpp"
 
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <iterator>
 #include <string>
@@ -26,7 +28,7 @@ int main(int argc, char **argv)
 	if (!validArgumentCount || !validVersion)
 	{
 		std::fprintf(stderr, "usage: %s <path to .ddop> [task controller version: 3 or 4 (default)]\n", argv[0]);
-		return 1;
+		return EXIT_FAILURE;
 	}
 
 	std::ifstream inputFile(argv[1], std::ios::binary);
@@ -34,7 +36,7 @@ int main(int argc, char **argv)
 	if (!inputFile)
 	{
 		std::fprintf(stderr, "FAIL: cannot open %s\n", argv[1]);
-		return 1;
+		return EXIT_FAILURE;
 	}
 
 	const std::vector<std::uint8_t> fileBytes((std::istreambuf_iterator<char>(inputFile)),
@@ -46,7 +48,7 @@ int main(int argc, char **argv)
 	if (!pool.deserialize_binary_object_pool(loadedBytes, isobus::NAME(0)))
 	{
 		std::fprintf(stderr, "FAIL: %s did not deserialize\n", argv[1]);
-		return 1;
+		return EXIT_FAILURE;
 	}
 
 	std::vector<std::uint8_t> savedBytes;
@@ -54,7 +56,7 @@ int main(int argc, char **argv)
 	if (!pool.generate_binary_object_pool(savedBytes))
 	{
 		std::fprintf(stderr, "FAIL: %s loaded but cannot be saved again\n", argv[1]);
-		return 1;
+		return EXIT_FAILURE;
 	}
 
 	if (savedBytes != fileBytes)
@@ -64,7 +66,7 @@ int main(int argc, char **argv)
 		             argv[1],
 		             fileBytes.size(),
 		             savedBytes.size());
-		return 1;
+		return EXIT_FAILURE;
 	}
 
 	std::string exportedXml;
@@ -79,7 +81,7 @@ int main(int argc, char **argv)
 	    !importedPool.generate_task_data_iso_xml(reexportedXml))
 	{
 		std::fprintf(stderr, "FAIL: %s did not survive an ISOXML export and import\n", argv[1]);
-		return 1;
+		return EXIT_FAILURE;
 	}
 
 	if (exportedXml != reexportedXml)
@@ -91,9 +93,9 @@ int main(int argc, char **argv)
 		             offset,
 		             exportedXml.c_str() + offset,
 		             reexportedXml.c_str() + offset);
-		return 1;
+		return EXIT_FAILURE;
 	}
 
 	std::printf("PASS: %u objects, %zu bytes, byte-identical round trip, identical ISOXML round trip\n", pool.size(), savedBytes.size());
-	return 0;
+	return EXIT_SUCCESS;
 }

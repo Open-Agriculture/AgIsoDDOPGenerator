@@ -16,7 +16,9 @@
 #include "isobus/isobus/isobus_data_dictionary.hpp"
 #include "isobus/utility/iop_file_interface.hpp"
 #include "logsink.hpp"
+#include "task_data_import.hpp"
 
+#include <algorithm>
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
@@ -328,6 +330,13 @@ bool DDOPGeneratorGUI::render_menu_bar()
 			{
 				FileDialog::file_dialog_open = true;
 				openFileDialogue = true;
+				importTaskDataDialogue = false;
+			}
+			if (ImGui::MenuItem("Import ISOXML", "Load a device from an ISOXML TASKDATA.XML file"))
+			{
+				FileDialog::file_dialog_open = true;
+				importTaskDataDialogue = true;
+				openFileDialogue = false;
 			}
 
 			if (!currentPoolValid)
@@ -549,17 +558,45 @@ bool DDOPGeneratorGUI::render_menu_bar()
 	return retVal;
 }
 
+/// @brief Renders a modal listing the logged errors of the last load attempt
+/// @param[in] title The popup title, which is also the ID to open it with
+/// @param[in] heading The text shown above the log
+static void render_log_error_popup(const char *title, const char *heading)
+{
+	if (ImGui::BeginPopupModal(title, NULL, ImGuiWindowFlags_AlwaysAutoResize))
+	{
+		ImGui::Text("%s", heading);
+		ImGui::Separator();
+
+		for (auto &logString : logger.logHistory)
+		{
+			ImGui::Text("%s", logString.logText.c_str());
+		}
+
+		ImGui::SetItemDefaultFocus();
+		if (ImGui::Button("OK", ImVec2(120, 0)))
+		{
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
+	}
+}
+
 void DDOPGeneratorGUI::render_open_file_menu()
 {
+	bool importSelectedDevice = false;
+
 	if (FileDialog::file_dialog_open)
 	{
 		FileDialog::ShowFileDialog(&FileDialog::file_dialog_open, filePathBuffer, FILE_PATH_BUFFER_MAX_LENGTH, FileDialog::FileDialogType::OpenFile);
 	}
-	else if (openFileDialogue)
+	else if (openFileDialogue || importTaskDataDialogue)
 	{
 		std::string selectedFileToRead(filePathBuffer);
 		memset(filePathBuffer, 0, FILE_PATH_BUFFER_MAX_LENGTH);
+		const bool importingTaskData = importTaskDataDialogue;
 		openFileDialogue = false;
+		importTaskDataDialogue = false;
 
 		if (!selectedFileToRead.empty())
 		{
@@ -581,7 +618,28 @@ void DDOPGeneratorGUI::render_open_file_menu()
 					currentObjectPool->set_task_controller_compatibility_level(4);
 				}
 
-				if (true == currentObjectPool->deserialize_binary_object_pool(loadedIopData, isobus::NAME(0)))
+				if (importingTaskData)
+				{
+					currentPoolValid = false;
+					pendingTaskData.assign(loadedIopData.begin(), loadedIopData.end());
+					taskDataDevices = list_task_data_devices(pendingTaskData);
+					selectedTaskDataDevice = 0;
+
+					if (taskDataDevices.empty())
+					{
+						currentObjectPool.reset();
+						ImGui::OpenPopup("Error Loading XML File");
+					}
+					else if (1 == taskDataDevices.size())
+					{
+						importSelectedDevice = true;
+					}
+					else
+					{
+						ImGui::OpenPopup("Select Device");
+					}
+				}
+				else if (true == currentObjectPool->deserialize_binary_object_pool(loadedIopData, isobus::NAME(0)))
 				{
 					// Valid pool?
 					currentPoolValid = true;
@@ -602,23 +660,51 @@ void DDOPGeneratorGUI::render_open_file_menu()
 		}
 	}
 
-	if (ImGui::BeginPopupModal("Error Loading DDOP", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+	if (ImGui::BeginPopupModal("Select Device", NULL, ImGuiWindowFlags_AlwaysAutoResize))
 	{
-		ImGui::Text("There were errors loading the DDOP. Make sure you selected the correct TC version.");
-		ImGui::Separator();
-
-		for (auto &logString : logger.logHistory)
+		std::vector<const char *> deviceLabels;
+		float listWidth = 0.0f;
+		for (const auto &label : taskDataDevices)
 		{
-			ImGui::Text("%s", logString.logText.c_str());
+			deviceLabels.push_back(label.c_str());
+			listWidth = std::max(listWidth, ImGui::CalcTextSize(label.c_str()).x);
 		}
+		ImGui::SetNextItemWidth(listWidth + ImGui::GetStyle().ScrollbarSize + 2.0f * ImGui::GetStyle().WindowPadding.x);
+		ImGui::ListBox("##Devices", &selectedTaskDataDevice, deviceLabels.data(), static_cast<int>(deviceLabels.size()));
 
-		ImGui::SetItemDefaultFocus();
 		if (ImGui::Button("OK", ImVec2(120, 0)))
 		{
+			importSelectedDevice = true;
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Cancel", ImVec2(120, 0)))
+		{
+			currentObjectPool.reset();
+			currentPoolValid = false;
 			ImGui::CloseCurrentPopup();
 		}
 		ImGui::EndPopup();
 	}
+
+	// Outside the Select Device modal, so the error popup opens with the ID it is rendered under below.
+	if (importSelectedDevice)
+	{
+		if (import_task_data_device(pendingTaskData, static_cast<std::size_t>(selectedTaskDataDevice), *currentObjectPool))
+		{
+			currentPoolValid = true;
+			lastFileName.clear();
+		}
+		else
+		{
+			currentObjectPool.reset();
+			currentPoolValid = false;
+			ImGui::OpenPopup("Error Loading XML File");
+		}
+	}
+
+	render_log_error_popup("Error Loading DDOP", "There were errors loading the DDOP. Make sure you selected the correct TC version.");
+	render_log_error_popup("Error Loading XML File", "There were errors reading the TASKDATA.XML:");
 }
 
 void DDOPGeneratorGUI::parseElementChildrenOfElement(std::uint16_t aObjectID)

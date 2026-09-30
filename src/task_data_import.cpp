@@ -6,6 +6,7 @@
 ///
 /// @copyright 2026 The Open-Agriculture developers
 //================================================================================================
+
 #include "task_data_import.hpp"
 #include "isobus/isobus/can_constants.hpp"
 #include "isobus/isobus/can_stack_logger.hpp"
@@ -219,7 +220,6 @@ bool import_task_data_device(const std::string &taskData, std::size_t deviceInde
 	std::uint64_t localizationLabel = 0;
 	bool success = (nullptr != device) &&
 	  read_hex(*device, "D", 16, isoName) &&
-	  // ponytail: extended structure label unsupported until a real v4 file shows its byte order
 	  read_hex(*device, "F", 14, structureLabel) &&
 	  read_hex(*device, "G", 14, localizationLabel);
 

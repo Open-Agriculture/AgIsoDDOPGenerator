@@ -24,6 +24,8 @@ When used in combination with AgIsoStack (or any other TC client), it provides a
 
 **File → New** starts an empty DDOP and asks for your device information; **File → Open** loads an existing one. `EXAMPLE.ddop` and `EXAMPLE_V4.ddop` in this repository are there to open and poke at.
 
+**File → Import ISOXML** reads the device description in an ISOXML TASKDATA.XML, and asks you to pick a device if the file holds several. **File → Save** then asks for a new file name, as it writes a binary DDOP.
+
 The left pane is the object tree, and whatever you select in it is edited in the right pane. **Create Object** adds a device element, process data, property or value presentation, and a device element gains children by referencing objects that already exist.
 
 **Edit → Check for Errors** serializes the pool and reports what a task controller would reject, including device elements that share an element number. **File → Save** writes the binary DDOP, and **File → Export as ISOXML** writes the same pool as a TASKDATA.XML.
