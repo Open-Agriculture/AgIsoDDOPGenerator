@@ -59,6 +59,19 @@ add_subdirectory(test)
 
 install(TARGETS AgIsoDDOPGenerator RUNTIME DESTINATION bin)
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  install(FILES packaging/agisoddopgenerator.desktop
+          DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
+  install(FILES packaging/agisoddopgenerator.xml
+          DESTINATION "${CMAKE_INSTALL_DATADIR}/mime/packages")
+  install(FILES packaging/agisoddopgenerator.svg
+          DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps")
+  install(
+    FILES packaging/agisoddopgenerator.svg
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/mimetypes"
+    RENAME application-x-iso11783-ddop.svg)
+endif()
+
 if(WIN32 OR APPLE)
   add_custom_command(
     TARGET AgIsoDDOPGenerator
