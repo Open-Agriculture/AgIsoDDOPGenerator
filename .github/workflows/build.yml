@@ -99,7 +99,7 @@ jobs:
       - name: Configure
         run: cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DCAN_DRIVER=None -DCMAKE_BUILD_TYPE=Release
       - name: Compile tests
-        run: cmake --build build --target example_pool_test
+        run: cmake --build build --target example_pool_test ddop_validator_test
       - name: Run tests
         run: ctest --test-dir build --output-on-failure
 
