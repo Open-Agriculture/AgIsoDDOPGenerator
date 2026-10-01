@@ -559,8 +559,6 @@ bool DDOPGeneratorGUI::render_menu_bar()
 }
 
 /// @brief Renders a modal listing the logged errors of the last load attempt
-/// @param[in] title The popup title, which is also the ID to open it with
-/// @param[in] heading The text shown above the log
 static void render_log_error_popup(const char *title, const char *heading)
 {
 	if (ImGui::BeginPopupModal(title, NULL, ImGuiWindowFlags_AlwaysAutoResize))
@@ -607,20 +605,19 @@ void DDOPGeneratorGUI::render_open_file_menu()
 
 		if (!selectedFileToRead.empty())
 		{
+			logger.logHistory.clear();
 			loadedIopData = isobus::IOPFileInterface::read_iop_file(selectedFileToRead);
 
 			if (loadedIopData.empty())
 			{
 				if (importingTaskData)
 				{
-					logger.logHistory.clear();
 					LOG_ERROR("[DDOP]: Could not read \"%s\", or it is empty.", selectedFileToRead.c_str());
 					ImGui::OpenPopup("Error Loading XML File");
 				}
 			}
 			else if (importingTaskData)
 			{
-				logger.logHistory.clear();
 				pendingTaskData.assign(loadedIopData.begin(), loadedIopData.end());
 				taskDataDevices = list_task_data_devices(pendingTaskData);
 				selectedTaskDataDevice = 0;
@@ -640,21 +637,17 @@ void DDOPGeneratorGUI::render_open_file_menu()
 			}
 			else
 			{
-				selectedObjectID = 0xFFFF;
-				logger.logHistory.clear();
-				currentObjectPool = make_pool();
+				auto openedPool = make_pool();
 
-				if (true == currentObjectPool->deserialize_binary_object_pool(loadedIopData, isobus::NAME(0)))
+				if (true == openedPool->deserialize_binary_object_pool(loadedIopData, isobus::NAME(0)))
 				{
-					// Valid pool?
+					currentObjectPool = std::move(openedPool);
+					selectedObjectID = 0xFFFF;
 					currentPoolValid = true;
 					lastFileName = selectedFileToRead;
 				}
 				else
 				{
-					currentObjectPool.reset();
-					currentPoolValid = false;
-
 					ImGui::OpenPopup("Error Loading DDOP");
 				}
 			}
@@ -690,7 +683,7 @@ void DDOPGeneratorGUI::render_open_file_menu()
 		ImGui::EndPopup();
 	}
 
-	// Outside the Select Device modal, so the error popup opens with the ID it is rendered under below.
+	// After EndPopup, because a popup opened inside another modal never shows.
 	if (importSelectedDevice)
 	{
 		auto importedPool = make_pool();

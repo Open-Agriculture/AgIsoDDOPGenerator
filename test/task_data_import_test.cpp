@@ -30,8 +30,8 @@ using isobus::task_controller_object::DeviceProcessDataObject;
 using isobus::task_controller_object::DevicePropertyObject;
 using isobus::task_controller_object::DeviceValuePresentationObject;
 
-static const std::string A_UMLAUT = "\xC3\xA4";
-static const std::uint16_t NO_PRESENTATION = isobus::NULL_OBJECT_ID;
+const std::string A_UMLAUT = "\xC3\xA4";
+const std::uint16_t NO_PRESENTATION = isobus::NULL_OBJECT_ID;
 
 static int failureCount = 0;
 
@@ -216,48 +216,27 @@ static void check_second_device(const std::string &taskData)
 		return;
 	}
 
-	const auto device = get_object<DeviceObject>(pool, 0);
-	const auto rootElement = get_object<DeviceElementObject>(pool, 5001);
-	const auto section = get_object<DeviceElementObject>(pool, 5003);
-	const auto workState = get_object<DeviceProcessDataObject>(pool, 5006);
-	const auto offsetX = get_object<DevicePropertyObject>(pool, 5005);
-	const auto hours = get_object<DeviceValuePresentationObject>(pool, 6001);
-	const auto hectares = get_object<DeviceValuePresentationObject>(pool, 6002);
+	check(9 == pool.size(), "DVC-2 holds the device and its 8 objects");
+	check_device(pool, "DVC-2", "Sprayer & Boom", "2.3.4", "", 0xA00086000CE01234, "7654321", { 0x65, 0x6E, 0, 0, 0, 0, 0xFF });
+	check_element(pool, 5001, DeviceElementObject::Type::Device, 0, 0, "Sprayer", { 5002, 5004 });
+	check_element(pool, 5003, DeviceElementObject::Type::Section, 1, 5001, "", { 5005, 5006 });
+	check_process_data(pool, 5002, 0x0074, 1, 8, "Total Area", 6002);
+	check_process_data(pool, 5004, 0x0077, 1, 8, "Total Time", 6001);
+	check_process_data(pool, 5006, 0x008D, 1, 31, "Work State", NO_PRESENTATION);
+	check_property(pool, 5005, 0x0086, -1200, "Offset X", NO_PRESENTATION);
+	check_presentation(pool, 6001, 0, 0.0000012345f, 1, "h");
+	check_presentation(pool, 6002, 0, 0.000099999997474f, 2, "ha   ");
+}
 
-	if ((nullptr == device) || (nullptr == rootElement) || (nullptr == section) || (nullptr == workState) ||
-	    (nullptr == offsetX) || (nullptr == hours) || (nullptr == hectares))
+static std::string repeat(const std::string &unit, std::size_t count)
+{
+	std::string repeated;
+
+	for (std::size_t i = 0; i < count; i++)
 	{
-		fail("DVC-2: an imported object is missing or has the wrong type");
-		return;
+		repeated += unit;
 	}
-
-	check(9 == pool.size(), "the pool holds the device and its 8 objects");
-	check(0xA00086000CE01234 == device->get_iso_name(), "D is read as a big-endian NAME");
-	check("Sprayer & Boom" == device->get_designator(), "the designator is entity-decoded");
-	check(device->get_serial_number().empty(), "a DVC without E has an empty serial number");
-	check("7654321" == device->get_structure_label(), "F is read in reversed byte order");
-	check((0x65 == device->get_localization_label().at(0)) && (0x6E == device->get_localization_label().at(1)) &&
-	        (0xFF == device->get_localization_label().at(6)),
-	      "G is read in reversed byte order");
-
-	check(DeviceElementObject::Type::Device == rootElement->get_type(), "the root DET is a Device element");
-	check(5001 == section->get_parent_object(), "the section DET has the root DET as its parent");
-	check(DeviceElementObject::Type::Section == section->get_type(), "the section DET has type 4");
-	check(section->get_designator().empty(), "a DET without D has an empty designator");
-	check((2 == section->get_number_child_objects()) && (5005 == section->get_child_object_id(0)) &&
-	        (5006 == section->get_child_object_id(1)),
-	      "the section DET keeps its DOR children in order");
-
-	check(0x008D == workState->get_ddi(), "a DPD DDI is read as hex");
-	check(isobus::NULL_OBJECT_ID == workState->get_device_value_presentation_object_id(), "a DPD without F has no DVP");
-	check(-1200 == offsetX->get_value(), "a DPT value can be negative");
-	check(isobus::NULL_OBJECT_ID == offsetX->get_device_value_presentation_object_id(), "a DPT without E has no DVP");
-	check(std::fabs(hours->get_scale() - 0.0000012345) < 1e-9, "the hours scale keeps its precision");
-	check(std::fabs(hectares->get_scale() - 0.000099999997474) < 1e-9, "the hectares scale keeps its precision");
-	check("ha   " == hectares->get_designator(), "a space-padded unit is kept as is");
-
-	std::vector<std::uint8_t> binaryPool;
-	check(pool.generate_binary_object_pool(binaryPool), "the imported pool serializes");
+	return repeated;
 }
 
 static void check_third_device(const std::string &taskData)
@@ -269,12 +248,6 @@ static void check_third_device(const std::string &taskData)
 		return;
 	}
 
-	std::string sixteenUmlauts;
-	for (std::size_t i = 0; i < 16; i++)
-	{
-		sixteenUmlauts += A_UMLAUT;
-	}
-
 	check(23 == pool.size(), "DVC-3 holds the device and its 22 objects, all listed out of order");
 	check_device(pool, "DVC-3", "Sprayer Plus", "3.1", "SN-0003", 0xA00086000CE05678, "GFEDCBA", { 0x72, 0x73, 0, 0, 0, 0, 0xFF });
 
@@ -283,9 +256,8 @@ static void check_third_device(const std::string &taskData)
 	check_element(pool, 7003, DeviceElementObject::Type::Bin, 2, 7002, "Tank " + A_UMLAUT, { 7113, 7111 });
 	check_element(pool, 7004, DeviceElementObject::Type::Section, 3, 7002, "Sec" + A_UMLAUT + "tion", { 7101, 7106 });
 	check_element(pool, 7005, DeviceElementObject::Type::Unit, 4, 7004, "Unit Hi", { 7103, 7105 });
-	check_element(pool, 7006, DeviceElementObject::Type::Connector, 5, 7001, sixteenUmlauts, { 7112 });
+	check_element(pool, 7006, DeviceElementObject::Type::Connector, 5, 7001, repeat(A_UMLAUT, 16), { 7112 });
 	check_element(pool, 7007, DeviceElementObject::Type::NavigationReference, 6, 7001, "Nav", { 7115 });
-	check(32 == sixteenUmlauts.size(), "the connector designator is 32 bytes");
 
 	check_process_data(pool, 7101, 0x0074, 1, 8, "Total Area", 7201);
 	check_process_data(pool, 7102, 0x0077, 3, 9, "Total Time", 7202);
@@ -293,8 +265,6 @@ static void check_third_device(const std::string &taskData)
 	check_process_data(pool, 7104, 0x8001, 5, 31, "Proprietary Rate", NO_PRESENTATION);
 	check_process_data(pool, 7105, 0x00AF, 1, 2, "Distance Driven", 7203);
 	check_process_data(pool, 7106, 0x9ABC, 2, 4, "ABCDEFGHIJKLMNOPQRSTUVWXYZ012345", NO_PRESENTATION);
-	const auto thirtyTwoBytes = get_object<DeviceProcessDataObject>(pool, 7106);
-	check((nullptr != thirtyTwoBytes) && (32 == thirtyTwoBytes->get_designator().size()), "the DPD designator is 32 bytes");
 
 	check_property(pool, 7111, 0x0086, 0, "Zero Offset", NO_PRESENTATION);
 	check_property(pool, 7112, 0x0087, -1200, "Negative Offset", 7202);
@@ -326,6 +296,38 @@ static void check_fourth_device(const std::string &taskData)
 	check_presentation(pool, 8201, 0, 1.0f, 0, "<&>");
 }
 
+static bool imports_with_replacement(const std::string &taskData, const std::string &original, const std::string &replacement, std::uint8_t tcVersion)
+{
+	const std::size_t position = taskData.find(original);
+
+	if (std::string::npos == position)
+	{
+		fail(original + " is not in the file, so its edit changes nothing");
+		return false;
+	}
+
+	std::string editedTaskData = taskData;
+	editedTaskData.replace(position, original.size(), replacement);
+	isobus::DeviceDescriptorObjectPool editedPool(tcVersion);
+	return import_task_data_device(editedTaskData, 1, editedPool);
+}
+
+static void check_text_limits(const std::string &taskData)
+{
+	const std::string designator = R"(B="Sprayer &amp; Boom")";
+	const auto text = [](const std::string &unit, std::size_t count) { return "B=\"" + repeat(unit, count) + "\""; };
+
+	check(imports_with_replacement(taskData, designator, text("x", 32), 3), "a 32 byte designator imports at TC version 3");
+	check(!imports_with_replacement(taskData, designator, text("x", 33), 3), "a 33 byte designator is rejected at TC version 3");
+	check(!imports_with_replacement(taskData, designator, text(A_UMLAUT, 17), 3), "a 34 byte designator of 17 characters is rejected at TC version 3");
+	check(imports_with_replacement(taskData, designator, text("x", 32), 4), "a 32 character designator imports at TC version 4");
+	check(!imports_with_replacement(taskData, designator, text("x", 33), 4), "a 33 character designator is rejected at TC version 4");
+	check(imports_with_replacement(taskData, designator, text(A_UMLAUT, 32), 4), "a 32 character, 64 byte designator imports at TC version 4");
+	check(!imports_with_replacement(taskData, designator, text(A_UMLAUT, 33), 4), "a 33 character, 66 byte designator is rejected at TC version 4");
+	check(imports_with_replacement(taskData, R"(C="0.0000012345")", R"(C="0")", 4), "a scale of 0 imports, because the exporter writes a tiny scale that way");
+	check(imports_with_replacement(taskData, R"(C="2.3.4")", "C=\"" + repeat("x", 255) + "\"", 4), "a 255 byte software version imports");
+}
+
 static void check_rejects(const std::string &taskData)
 {
 	const std::vector<std::pair<std::string, std::string>> rejects = {
@@ -342,19 +344,7 @@ static void check_rejects(const std::string &taskData)
 	};
 	for (const auto &reject : rejects)
 	{
-		const std::size_t position = taskData.find(reject.first);
-		const std::string description = reject.first + " -> " + reject.second + " is rejected";
-
-		if (std::string::npos == position)
-		{
-			fail(reject.first + " is not in the file, so its reject case edits nothing");
-			continue;
-		}
-
-		std::string badTaskData = taskData;
-		badTaskData.replace(position, reject.first.size(), reject.second);
-		isobus::DeviceDescriptorObjectPool badPool(4);
-		check(!import_task_data_device(badTaskData, 1, badPool), description);
+		check(!imports_with_replacement(taskData, reject.first, reject.second, 4), reject.first + " -> " + reject.second + " is rejected");
 	}
 
 	for (const std::string &notTaskData : { std::string(), std::string("DVC\x01\x02"), std::string("<Other/>") })
@@ -449,6 +439,7 @@ int main(int argc, char **argv)
 	check_third_device(taskData);
 	check_fourth_device(taskData);
 	check_rejects(taskData);
+	check_text_limits(taskData);
 
 	const std::size_t deviceCount = list_task_data_devices(taskData).size();
 	for (std::size_t i = 0; i < deviceCount; i++)
