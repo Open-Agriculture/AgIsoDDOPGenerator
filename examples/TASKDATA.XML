@@ -34,8 +34,8 @@
 	A="DVC-3">
 	<!-- a DPD without a DVP, a proprietary DDI, all trigger bits -->
 	<DPD E="Proprietary Rate" D="31" C="5" B="8001" A="7104"/>
-	<!-- no unit, scale 1e-7, 7 decimals, a large offset -->
-	<DVP E="" D="7" C="1e-7" B="2000000000" A="7203"/>
+	<!-- no unit, scale 0.0000001, 7 decimals, a large offset -->
+	<DVP E="" D="7" C="0.0000001" B="2000000000" A="7203"/>
 	<!-- level 4: a unit under a section, with a numeric character reference in the designator -->
 	<DET F="7004" E="4" D="Unit &#x48;&#105;" C="5" B="7005" A="DET-7">
 		<DOR A="7103"/>

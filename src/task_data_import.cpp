@@ -23,10 +23,16 @@
 #include <memory>
 #include <sstream>
 
+static constexpr std::int64_t MAX_ELEMENT_NUMBER = 4095;
+static constexpr std::int64_t MAX_TRIGGER_METHODS = 31;
+static constexpr std::int64_t MAX_DECIMALS = 7;
+static constexpr std::size_t MAX_SOFTWARE_VERSION_LENGTH = std::numeric_limits<std::uint8_t>::max(); // The serialized length is one byte
+
 static bool log_invalid_attribute(const tinyxml2::XMLElement &element, const char *attribute)
 {
 	const char *id = element.Attribute("A");
-	LOG_ERROR("[DDOP]: TASKDATA %s \"%s\" has a missing or invalid %s attribute.", element.Name(), (nullptr != id) ? id : "", attribute);
+	const char *value = element.Attribute(attribute);
+	LOG_ERROR("[DDOP]: TASKDATA %s \"%s\" has a missing or invalid %s attribute (value \"%.40s\").", element.Name(), (nullptr != id) ? id : "", attribute, (nullptr != value) ? value : "");
 	return false;
 }
 
@@ -112,7 +118,7 @@ static bool import_object(const tinyxml2::XMLElement &element, isobus::DeviceDes
 
 		success = read_integer(element, "B", objectID) &&
 		  read_integer(element, "C", type, 1, 7) &&
-		  read_integer(element, "E", elementNumber) &&
+		  read_integer(element, "E", elementNumber, 0, MAX_ELEMENT_NUMBER) &&
 		  read_integer(element, "F", parentID) &&
 		  pool.add_device_element(read_text(element, "D"), elementNumber, parentID, static_cast<isobus::task_controller_object::DeviceElementObject::Type>(type), objectID);
 
@@ -135,7 +141,7 @@ static bool import_object(const tinyxml2::XMLElement &element, isobus::DeviceDes
 		success = read_integer(element, "A", objectID) &&
 		  read_hex(element, "B", 4, ddi) &&
 		  read_integer(element, "C", properties) &&
-		  read_integer(element, "D", triggers) &&
+		  read_integer(element, "D", triggers, 0, MAX_TRIGGER_METHODS) &&
 		  ((nullptr == element.Attribute("F")) || read_integer(element, "F", presentationID)) &&
 		  pool.add_device_process_data(read_text(element, "E"), static_cast<std::uint16_t>(ddi), presentationID, properties, triggers, objectID);
 	}
@@ -157,8 +163,9 @@ static bool import_object(const tinyxml2::XMLElement &element, isobus::DeviceDes
 
 		success = read_integer(element, "A", objectID) &&
 		  read_integer(element, "B", offset) &&
-		  (parse_number(element.Attribute("C"), scale) || log_invalid_attribute(element, "C")) &&
-		  read_integer(element, "D", decimals) &&
+		  // Zero is accepted because the exporter writes a scale below 1e-6 as 0.000000 and must be able to read its own output.
+		  ((parse_number(element.Attribute("C"), scale) && (0.0f <= scale)) || log_invalid_attribute(element, "C")) &&
+		  read_integer(element, "D", decimals, 0, MAX_DECIMALS) &&
 		  pool.add_device_value_presentation(read_text(element, "E"), offset, scale, decimals, objectID);
 	}
 	return success;
@@ -219,6 +226,7 @@ bool import_task_data_device(const std::string &taskData, std::size_t deviceInde
 	std::uint64_t structureLabel = 0;
 	std::uint64_t localizationLabel = 0;
 	bool success = (nullptr != device) &&
+	  ((read_text(*device, "C").size() <= MAX_SOFTWARE_VERSION_LENGTH) || log_invalid_attribute(*device, "C")) &&
 	  read_hex(*device, "D", 16, isoName) &&
 	  read_hex(*device, "F", 14, structureLabel) &&
 	  read_hex(*device, "G", 14, localizationLabel);

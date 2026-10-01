@@ -582,6 +582,13 @@ static void render_log_error_popup(const char *title, const char *heading)
 	}
 }
 
+static std::unique_ptr<isobus::DeviceDescriptorObjectPool> make_pool()
+{
+	auto pool = std::make_unique<isobus::DeviceDescriptorObjectPool>();
+	pool->set_task_controller_compatibility_level((0 == FileDialog::versions_current_idx) ? 3 : 4);
+	return pool;
+}
+
 void DDOPGeneratorGUI::render_open_file_menu()
 {
 	bool importSelectedDevice = false;
@@ -602,44 +609,42 @@ void DDOPGeneratorGUI::render_open_file_menu()
 		{
 			loadedIopData = isobus::IOPFileInterface::read_iop_file(selectedFileToRead);
 
-			if (!loadedIopData.empty())
+			if (loadedIopData.empty())
 			{
-				selectedObjectID = 0xFFFF;
-				logger.logHistory.clear();
-				currentObjectPool.reset();
-				currentObjectPool = std::make_unique<isobus::DeviceDescriptorObjectPool>();
-
-				if (0 == FileDialog::versions_current_idx)
+				if (importingTaskData)
 				{
-					currentObjectPool->set_task_controller_compatibility_level(3);
+					logger.logHistory.clear();
+					LOG_ERROR("[DDOP]: Could not read \"%s\", or it is empty.", selectedFileToRead.c_str());
+					ImGui::OpenPopup("Error Loading XML File");
+				}
+			}
+			else if (importingTaskData)
+			{
+				logger.logHistory.clear();
+				pendingTaskData.assign(loadedIopData.begin(), loadedIopData.end());
+				taskDataDevices = list_task_data_devices(pendingTaskData);
+				selectedTaskDataDevice = 0;
+
+				if (taskDataDevices.empty())
+				{
+					ImGui::OpenPopup("Error Loading XML File");
+				}
+				else if (1 == taskDataDevices.size())
+				{
+					importSelectedDevice = true;
 				}
 				else
 				{
-					currentObjectPool->set_task_controller_compatibility_level(4);
+					ImGui::OpenPopup("Select Device");
 				}
+			}
+			else
+			{
+				selectedObjectID = 0xFFFF;
+				logger.logHistory.clear();
+				currentObjectPool = make_pool();
 
-				if (importingTaskData)
-				{
-					currentPoolValid = false;
-					pendingTaskData.assign(loadedIopData.begin(), loadedIopData.end());
-					taskDataDevices = list_task_data_devices(pendingTaskData);
-					selectedTaskDataDevice = 0;
-
-					if (taskDataDevices.empty())
-					{
-						currentObjectPool.reset();
-						ImGui::OpenPopup("Error Loading XML File");
-					}
-					else if (1 == taskDataDevices.size())
-					{
-						importSelectedDevice = true;
-					}
-					else
-					{
-						ImGui::OpenPopup("Select Device");
-					}
-				}
-				else if (true == currentObjectPool->deserialize_binary_object_pool(loadedIopData, isobus::NAME(0)))
+				if (true == currentObjectPool->deserialize_binary_object_pool(loadedIopData, isobus::NAME(0)))
 				{
 					// Valid pool?
 					currentPoolValid = true;
@@ -680,8 +685,6 @@ void DDOPGeneratorGUI::render_open_file_menu()
 		ImGui::SameLine();
 		if (ImGui::Button("Cancel", ImVec2(120, 0)))
 		{
-			currentObjectPool.reset();
-			currentPoolValid = false;
 			ImGui::CloseCurrentPopup();
 		}
 		ImGui::EndPopup();
@@ -690,15 +693,17 @@ void DDOPGeneratorGUI::render_open_file_menu()
 	// Outside the Select Device modal, so the error popup opens with the ID it is rendered under below.
 	if (importSelectedDevice)
 	{
-		if (import_task_data_device(pendingTaskData, static_cast<std::size_t>(selectedTaskDataDevice), *currentObjectPool))
+		auto importedPool = make_pool();
+
+		if (import_task_data_device(pendingTaskData, static_cast<std::size_t>(selectedTaskDataDevice), *importedPool))
 		{
+			currentObjectPool = std::move(importedPool);
+			selectedObjectID = 0xFFFF;
 			currentPoolValid = true;
 			lastFileName.clear();
 		}
 		else
 		{
-			currentObjectPool.reset();
-			currentPoolValid = false;
 			ImGui::OpenPopup("Error Loading XML File");
 		}
 	}

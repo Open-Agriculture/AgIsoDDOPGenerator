@@ -329,7 +329,16 @@ static void check_fourth_device(const std::string &taskData)
 static void check_rejects(const std::string &taskData)
 {
 	const std::vector<std::pair<std::string, std::string>> rejects = {
-		{ R"(B="5003" C="4")", R"(B="5003" C="9")" }, { R"(B="5003" C="4")", R"(B="5003" C="-1")" }, { R"(B="5003" C="4")", R"(B="5003" C="4x")" }, { R"(F="31323334353637")", R"(F="3132333435363738")" }, { R"(<DPD A="5004")", R"(<DPD A="5002")" }
+		{ R"(B="5003" C="4")", R"(B="5003" C="9")" },
+		{ R"(B="5003" C="4")", R"(B="5003" C="-1")" },
+		{ R"(B="5003" C="4")", R"(B="5003" C="4x")" },
+		{ R"(F="31323334353637")", R"(F="3132333435363738")" },
+		{ R"(<DPD A="5004")", R"(<DPD A="5002")" },
+		{ R"(C="4" E="1" F="5001")", R"(C="4" E="4096" F="5001")" },
+		{ R"(D="31" E="Work State")", R"(D="32" E="Work State")" },
+		{ R"(C="0.0000012345" D="1")", R"(C="0.0000012345" D="8")" },
+		{ R"(C="0.0000012345")", R"(C="-1")" },
+		{ R"(C="2.3.4")", "C=\"" + std::string(256, 'x') + "\"" }
 	};
 	for (const auto &reject : rejects)
 	{
