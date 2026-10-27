@@ -79,6 +79,9 @@ private:
 	char hexIsoNameBuffer[17] = { 0 };
 	char languageCodeBuffer[3] = { 0 };
 	std::string lastFileName;
+	std::string pendingTaskData;
+	std::vector<std::string> taskDataDevices;
+	int selectedTaskDataDevice = 0;
 	int elementNumberBuffer = 0;
 	int parentObjectBuffer = 0;
 	int ddiBuffer = 0;
@@ -94,6 +97,7 @@ private:
 	std::array<bool, 8> propertiesBitfieldBuffer = { false };
 	std::array<bool, 8> triggerBitfieldBuffer = { false };
 	bool openFileDialogue = false;
+	bool importTaskDataDialogue = false;
 	bool saveModal = false;
 	bool saveAsModal = false;
 	bool exportModal = false;

@@ -7,3 +7,6 @@
 [submodule "submodules/agisostack"]
 	path = submodules/agisostack
 	url = https://github.com/Open-Agriculture/AgIsoStack-plus-plus.git
+[submodule "submodules/tinyxml2"]
+	path = submodules/tinyxml2
+	url = https://github.com/leethomason/tinyxml2

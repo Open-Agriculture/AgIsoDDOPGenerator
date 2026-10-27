@@ -33,11 +33,13 @@ find_package(OpenGL REQUIRED)
 set(BUILD_TESTING OFF)
 add_subdirectory(submodules/agisostack)
 add_subdirectory(submodules/sdl)
+add_subdirectory(submodules/tinyxml2 EXCLUDE_FROM_ALL)
 
 target_sources(
   AgIsoDDOPGenerator
   PRIVATE src/main.cpp
           src/gui.cpp
+          src/task_data_import.cpp
           submodules/imgui/imgui.cpp
           submodules/imgui/imgui_demo.cpp
           submodules/imgui/imgui_draw.cpp
@@ -51,8 +53,14 @@ target_include_directories(
                             submodules/imgui/backends submodules/sdl/include)
 
 target_link_libraries(
-  AgIsoDDOPGenerator PRIVATE isobus::Isobus isobus::Utility OpenGL::GL SDL2
-                             SDL2main ${CMAKE_DL_LIBS})
+  AgIsoDDOPGenerator
+  PRIVATE isobus::Isobus
+          isobus::Utility
+          OpenGL::GL
+          SDL2
+          SDL2main
+          tinyxml2::tinyxml2
+          ${CMAKE_DL_LIBS})
 
 enable_testing()
 add_subdirectory(test)

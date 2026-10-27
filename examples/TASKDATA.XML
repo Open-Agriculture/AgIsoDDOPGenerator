@@ -1,0 +1,89 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!-- The UTF-8 byte order mark, CRLF line endings and non-DVC elements between devices are deliberate. -->
+<ISO11783_TaskData VersionMajor="4" VersionMinor="2" DataTransferOrigin="2">
+<DVC A="DVC-1" B="Tractor ECU" C="1.0" D="A00084000C200002" E="1234" F="00000000000001" G="FF000000006564"/>
+<CTR A="CTR-1" B="Test Customer"/>
+<TSK A="TSK-1" G="1"/>
+<DVC A="DVC-2" B="Sprayer &amp; Boom" C="2.3.4" D="A00086000CE01234" F="31323334353637" G="FF000000006E65">
+	<DET A="DET-1" B="5001" C="1" D="Sprayer" E="0" F="0">
+		<DOR A="5002"/>
+		<DOR A="5004"/>
+	</DET>
+	<DET A="DET-2" B="5003" C="4" E="1" F="5001">
+		<DOR A="5005"/>
+		<DOR A="5006"/>
+	</DET>
+	<DPD A="5002" B="0074" C="1" D="8" E="Total Area" F="6002"/>
+	<DPD A="5004" B="0077" C="1" D="8" E="Total Time" F="6001"/>
+	<DPD A="5006" B="008D" C="1" D="31" E="Work State"/>
+	<DPT A="5005" B="0086" C="-1200" D="Offset X"/>
+	<DVP A="6001" B="0" C="0.0000012345" D="1" E="h"/>
+	<DVP A="6002" B="0" C="0.000099999997474" D="2" E="ha   "/>
+</DVC>
+<PFD A="PFD-1" C="Test Field" D="1000"/>
+<!-- DVC-3: objects, DORs and attributes deliberately out of order; DPD 7101 is shared by two DETs -->
+<DVC
+	G="FF000000007372"
+	F="41424344454647"
+	E="SN-0003"
+	D="A00086000CE05678"
+	C="3.1"
+	B="Sprayer Plus"
+	A="DVC-3">
+	<DPD E="Proprietary Rate" D="31" C="5" B="8001" A="7104"/>
+	<DVP E="" D="7" C="0.0000001" B="2000000000" A="7203"/>
+	<DET F="7004" E="4" D="Unit &#x48;&#105;" C="5" B="7005" A="DET-7">
+		<DOR A="7103"/>
+		<DOR A="7105"/>
+	</DET>
+	<DET A="DET-3" B="7001" C="1" D="Sprayer Device" E="0" F="0">
+		<DOR A="7104"/>
+		<DOR A="7101"/>
+		<DOR A="7114"/>
+		<DOR A="7102"/>
+	</DET>
+	<DPT D="Int32 Min" C="-2147483648" B="0086" A="7114"/>
+	<DET A="DET-5" B="7003" C="3" D="Tank ä" E="2" F="7002">
+		<DOR A="7113"/>
+		<DOR A="7111"/>
+	</DET>
+	<DET A="DET-4" B="7002" C="2" D="Function" E="1" F="7001"/>
+	<DET A="DET-6" B="7004" C="4" D="Sec&#228;tion" E="3" F="7002">
+		<DOR A="7101"/>
+		<DOR A="7106"/>
+	</DET>
+	<!-- exactly 32 bytes -->
+	<DET A="DET-8" B="7006" C="6" D="ääääääääääääääää" E="5" F="7001">
+		<DOR A="7112"/>
+	</DET>
+	<DET A="DET-9" B="7007" C="7" D="Nav" E="6" F="7001">
+		<DOR A="7115"/>
+	</DET>
+	<DPD A="7101" B="0074" C="1" D="8" E="Total Area" F="7201"/>
+	<DPD A="7102" B="0077" C="3" D="9" E="Total Time" F="7202"/>
+	<DPD D="0" C="0" B="008D" A="7103"/>
+	<!-- lowercase on purpose -->
+	<DPD A="7105" B="00af" C="1" D="2" E="Distance Driven" F="7203"/>
+	<!-- exactly 32 bytes -->
+	<DPD A="7106" B="9ABC" C="2" D="4" E="ABCDEFGHIJKLMNOPQRSTUVWXYZ012345"/>
+	<DPT A="7111" B="0086" C="0" D="Zero Offset"/>
+	<DPT A="7112" B="0087" C="-1200" D="Negative Offset" E="7202"/>
+	<DPT A="7113" B="0088" C="2147483647" D="Int32 Max"/>
+	<DPT A="7115" B="0089" C="65536" D="Large With DVP" E="7204"/>
+	<DVP A="7201" B="0" C="1" D="0" E="m"/>
+	<DVP A="7202" B="-100" C="0.001" D="3" E="mm"/>
+	<DVP A="7204" B="-2147483648" C="100" D="0" E="%"/>
+</DVC>
+<VPN A="VPN-1" B="0" C="0" D="1" E="0"/>
+<!-- DVC-4: entities and character references the exporter must escape to round trip -->
+<DVC A="DVC-4" B="Quote &quot;Q&quot; &lt;tag&gt; &amp; &apos;a&apos;" C="&lt;4&gt;" D="A00086000CE09ABC" E="&amp;" F="41424344454647" G="FF000000007372">
+	<DET A="DET-10" B="8001" C="1" D="Root &lt;1&gt;" E="0" F="0"/>
+	<DET A="DET-11" B="8002" C="4" D="a &amp; b" E="1" F="8001">
+		<DOR A="8101"/>
+		<DOR A="8102"/>
+	</DET>
+	<DPD A="8101" B="0074" C="1" D="8" E="Rate &quot;x&quot;" F="8201"/>
+	<DPT A="8102" B="0086" C="7" D="It&apos;s &#60;NCR&#62; ä" E="8201"/>
+	<DVP A="8201" B="0" C="1" D="0" E="&lt;&amp;&gt;"/>
+</DVC>
+</ISO11783_TaskData>
