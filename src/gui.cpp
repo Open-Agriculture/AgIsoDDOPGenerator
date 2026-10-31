@@ -39,6 +39,28 @@ static bool can_be_device_element_child(const std::shared_ptr<isobus::task_contr
 	   (isobus::task_controller_object::ObjectTypes::DeviceProperty == object->get_object_type()));
 }
 
+/// @brief Checks if an object can be added as a child of a device element
+/// @param[in] element The device element to add the child to
+/// @param[in] object The object to check, which may be null
+/// @returns true if the object is a device process data or device property object that the element does not reference yet
+static bool can_add_device_element_child(const std::shared_ptr<isobus::task_controller_object::DeviceElementObject> &element,
+                                         const std::shared_ptr<isobus::task_controller_object::Object> &object)
+{
+	if (!can_be_device_element_child(object))
+	{
+		return false;
+	}
+
+	for (std::uint16_t i = 0; i < element->get_number_child_objects(); i++)
+	{
+		if (element->get_child_object_id(i) == object->get_object_id())
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 /// @brief Logs a warning for each device element number used by more than one device element
 /// @param[in] objectPool The device descriptor object pool to scan
 static void warn_on_duplicate_device_element_numbers(isobus::DeviceDescriptorObjectPool &objectPool)
@@ -1303,13 +1325,13 @@ void DDOPGeneratorGUI::render_device_element_settings(std::shared_ptr<isobus::ta
 	{
 		auto selectedObject = currentObjectPool->get_object_by_index(addChildComboIndex);
 
-		if (!can_be_device_element_child(selectedObject))
+		if (!can_add_device_element_child(object, selectedObject))
 		{
 			selectedObject = nullptr;
 
 			for (std::uint16_t n = 0; n < currentObjectPool->size(); n++)
 			{
-				if (can_be_device_element_child(currentObjectPool->get_object_by_index(n)))
+				if (can_add_device_element_child(object, currentObjectPool->get_object_by_index(n)))
 				{
 					addChildComboIndex = n;
 					selectedObject = currentObjectPool->get_object_by_index(n);
@@ -1326,7 +1348,7 @@ void DDOPGeneratorGUI::render_device_element_settings(std::shared_ptr<isobus::ta
 				{
 					auto childObject = currentObjectPool->get_object_by_index(n);
 
-					if (can_be_device_element_child(childObject))
+					if (can_add_device_element_child(object, childObject))
 					{
 						const bool is_selected = (addChildComboIndex == n);
 
@@ -1351,7 +1373,7 @@ void DDOPGeneratorGUI::render_device_element_settings(std::shared_ptr<isobus::ta
 		}
 		else
 		{
-			ImGui::Text("Add a device process data or device property object to attach a child to this element.");
+			ImGui::Text("Add a device process data or device property object that is not a child of this element yet.");
 		}
 	}
 }
