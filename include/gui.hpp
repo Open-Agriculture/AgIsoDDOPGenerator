@@ -75,7 +75,7 @@ private:
 	char softwareVersionBuffer[129] = { 0 };
 	char serialNumberBuffer[129] = { 0 };
 	char structureLabelBuffer[8] = { 0 };
-	char extendedStructureLabelBuffer[129] = { 0 };
+	char extendedStructureLabelBuffer[isobus::task_controller_object::DeviceObject::MAX_EXTENDED_STRUCTURE_LABEL_LENGTH + 1] = { 0 };
 	char hexIsoNameBuffer[17] = { 0 };
 	char languageCodeBuffer[3] = { 0 };
 	std::string lastFileName;
