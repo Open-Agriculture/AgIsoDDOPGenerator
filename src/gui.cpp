@@ -282,14 +282,16 @@ void DDOPGeneratorGUI::start()
 								{
 									auto element = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceElementObject>(objectToProcess);
 
-									while (element->remove_reference_to_child_object(idOfDeletedObject))
+									for (std::size_t j = 0; j < element->get_number_child_objects(); j++)
 									{
-										// Removes one reference per call, so this also removes duplicates
-									}
-
-									if (element->get_parent_object() == idOfDeletedObject)
-									{
-										element->set_parent_object(0xFFFF);
+										if (element->get_child_object_id(j) != idOfDeletedObject)
+										{
+											element->remove_reference_to_child_object(idOfDeletedObject);
+										}
+										if (element->get_parent_object() == idOfDeletedObject)
+										{
+											element->set_parent_object(0xFFFF);
+										}
 									}
 								}
 							}
