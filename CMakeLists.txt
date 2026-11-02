@@ -39,6 +39,7 @@ target_sources(
   AgIsoDDOPGenerator
   PRIVATE src/main.cpp
           src/gui.cpp
+          src/section_layout.cpp
           src/task_data_import.cpp
           submodules/imgui/imgui.cpp
           submodules/imgui/imgui_demo.cpp
