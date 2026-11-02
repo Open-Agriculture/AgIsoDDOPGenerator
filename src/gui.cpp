@@ -14,10 +14,13 @@
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_sdl2.h"
+#include "isobus/isobus/can_constants.hpp"
 #include "isobus/isobus/isobus_data_dictionary.hpp"
 #include "isobus/utility/iop_file_interface.hpp"
 #include "logsink.hpp"
+#include "task_data_import.hpp"
 
+#include <algorithm>
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
@@ -29,6 +32,38 @@
 
 constexpr std::uint16_t PROPRIETARY_DDI_RANGE_START = 57344;
 constexpr std::uint16_t PROPRIETARY_DDI_RANGE_END = 65534;
+
+/// @brief Checks if an object is a type that a device element is allowed to reference as a child
+/// @param[in] object The object to check, which may be null
+/// @returns true if the object is a device process data or device property object
+static bool can_be_device_element_child(const std::shared_ptr<isobus::task_controller_object::Object> &object)
+{
+	return (nullptr != object) &&
+	  ((isobus::task_controller_object::ObjectTypes::DeviceProcessData == object->get_object_type()) ||
+	   (isobus::task_controller_object::ObjectTypes::DeviceProperty == object->get_object_type()));
+}
+
+/// @brief Checks if an object can be added as a child of a device element
+/// @param[in] element The device element to add the child to
+/// @param[in] object The object to check, which may be null
+/// @returns true if the object is a device process data or device property object that the element does not reference yet
+static bool can_add_device_element_child(const std::shared_ptr<isobus::task_controller_object::DeviceElementObject> &element,
+                                         const std::shared_ptr<isobus::task_controller_object::Object> &object)
+{
+	if (!can_be_device_element_child(object))
+	{
+		return false;
+	}
+
+	for (std::uint16_t i = 0; i < element->get_number_child_objects(); i++)
+	{
+		if (element->get_child_object_id(i) == object->get_object_id())
+		{
+			return false;
+		}
+	}
+	return true;
+}
 
 /// @brief Logs a warning for each device element number used by more than one device element
 /// @param[in] objectPool The device descriptor object pool to scan
@@ -250,35 +285,24 @@ void DDOPGeneratorGUI::start(const std::string &fileToOpen)
 						ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0f, 0.0f, 0.0f, 0.8f));
 						ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1.0f, 0.0f, 0.0f, 0.7f));
 						ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1.0f, 0.0f, 0.0f, 0.6f));
+						const bool isRootElement = is_undeletable_root_element(selectedObject);
+
+						ImGui::BeginDisabled(isRootElement);
 						if ((selectedObject->get_object_type() != isobus::task_controller_object::ObjectTypes::Device) &&
 						    ImGui::Button("Delete Object"))
 						{
+							auto deletedElement = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceElementObject>(selectedObject);
 							std::uint16_t idOfDeletedObject = selectedObject->get_object_id();
-							currentObjectPool->remove_object_by_id(selectedObject->get_object_id());
+							std::uint16_t parentOfDeletedObject = (nullptr != deletedElement) ? deletedElement->get_parent_object() : isobus::NULL_OBJECT_ID;
 
-							// Prune all other references to this object
-							for (std::uint32_t i = 0; i < currentObjectPool->size(); i++)
-							{
-								auto objectToProcess = currentObjectPool->get_object_by_index(i);
+							currentObjectPool->remove_object_by_id(idOfDeletedObject);
+							prune_references_to_object(idOfDeletedObject, parentOfDeletedObject);
+						}
+						ImGui::EndDisabled();
 
-								if ((nullptr != objectToProcess) &&
-								    (isobus::task_controller_object::ObjectTypes::DeviceElement == objectToProcess->get_object_type()))
-								{
-									auto element = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceElementObject>(objectToProcess);
-
-									for (std::size_t j = 0; j < element->get_number_child_objects(); j++)
-									{
-										if (element->get_child_object_id(j) != idOfDeletedObject)
-										{
-											element->remove_reference_to_child_object(idOfDeletedObject);
-										}
-										if (element->get_parent_object() == idOfDeletedObject)
-										{
-											element->set_parent_object(0xFFFF);
-										}
-									}
-								}
-							}
+						if (isRootElement && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+						{
+							ImGui::SetTooltip("This is the device element of type device, the root of the element hierarchy.\nA pool may only have one, so it cannot be deleted while other elements exist.");
 						}
 						ImGui::PopStyleColor(3);
 					}
@@ -346,6 +370,13 @@ bool DDOPGeneratorGUI::render_menu_bar()
 			{
 				FileDialog::file_dialog_open = true;
 				openFileDialogue = true;
+				importTaskDataDialogue = false;
+			}
+			if (ImGui::MenuItem("Import ISOXML", "Load a device from an ISOXML TASKDATA.XML file"))
+			{
+				FileDialog::file_dialog_open = true;
+				importTaskDataDialogue = true;
+				openFileDialogue = false;
 			}
 
 			if (!currentPoolValid)
@@ -567,17 +598,50 @@ bool DDOPGeneratorGUI::render_menu_bar()
 	return retVal;
 }
 
+/// @brief Renders a modal listing the logged errors of the last load attempt
+static void render_log_error_popup(const char *title, const char *heading)
+{
+	if (ImGui::BeginPopupModal(title, NULL, ImGuiWindowFlags_AlwaysAutoResize))
+	{
+		ImGui::Text("%s", heading);
+		ImGui::Separator();
+
+		for (auto &logString : logger.logHistory)
+		{
+			ImGui::Text("%s", logString.logText.c_str());
+		}
+
+		ImGui::SetItemDefaultFocus();
+		if (ImGui::Button("OK", ImVec2(120, 0)))
+		{
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
+	}
+}
+
+static std::unique_ptr<isobus::DeviceDescriptorObjectPool> make_pool()
+{
+	auto pool = std::make_unique<isobus::DeviceDescriptorObjectPool>();
+	pool->set_task_controller_compatibility_level((0 == FileDialog::versions_current_idx) ? 3 : 4);
+	return pool;
+}
+
 void DDOPGeneratorGUI::render_open_file_menu()
 {
+	bool importSelectedDevice = false;
+
 	if (FileDialog::file_dialog_open)
 	{
 		FileDialog::ShowFileDialog(&FileDialog::file_dialog_open, filePathBuffer, FILE_PATH_BUFFER_MAX_LENGTH, FileDialog::FileDialogType::OpenFile);
 	}
-	else if (openFileDialogue)
+	else if (openFileDialogue || importTaskDataDialogue)
 	{
 		std::string selectedFileToRead(filePathBuffer);
 		memset(filePathBuffer, 0, FILE_PATH_BUFFER_MAX_LENGTH);
+		const bool importingTaskData = importTaskDataDialogue;
 		openFileDialogue = false;
+		importTaskDataDialogue = false;
 
 		if (!selectedFileToRead.empty())
 		{
@@ -602,56 +666,109 @@ void DDOPGeneratorGUI::render_open_file_menu()
 
 			if (loadedIopData.empty())
 			{
-				ImGui::OpenPopup("Error Loading DDOP");
+				if (importingTaskData)
+				{
+					LOG_ERROR("[DDOP]: Could not read \"%s\", or it is empty.", selectedFileToRead.c_str());
+					ImGui::OpenPopup("Error Loading XML File");
+				}
+				else
+				{
+					ImGui::OpenPopup("Error Loading DDOP");
+				}
+			}
+			else if (importingTaskData)
+			{
+				pendingTaskData.assign(loadedIopData.begin(), loadedIopData.end());
+				taskDataDevices = list_task_data_devices(pendingTaskData);
+				selectedTaskDataDevice = 0;
+
+				if (taskDataDevices.empty())
+				{
+					ImGui::OpenPopup("Error Loading XML File");
+				}
+				else if (1 == taskDataDevices.size())
+				{
+					importSelectedDevice = true;
+				}
+				else
+				{
+					ImGui::OpenPopup("Select Device");
+				}
 			}
 			else
 			{
 				const std::uint8_t selectedVersion = (0 == FileDialog::versions_current_idx) ? 3 : 4;
-
-				selectedObjectID = 0xFFFF;
-				currentPoolValid = false;
+				bool opened = false;
 
 				for (const std::uint8_t version : { selectedVersion, static_cast<std::uint8_t>((3 == selectedVersion) ? 4 : 3) })
 				{
-					currentObjectPool.reset();
-					currentObjectPool = std::make_unique<isobus::DeviceDescriptorObjectPool>();
-					currentObjectPool->set_task_controller_compatibility_level(version);
+					auto openedPool = std::make_unique<isobus::DeviceDescriptorObjectPool>();
+					openedPool->set_task_controller_compatibility_level(version);
 
-					if (true == currentObjectPool->deserialize_binary_object_pool(loadedIopData, isobus::NAME(0)))
+					if (true == openedPool->deserialize_binary_object_pool(loadedIopData, isobus::NAME(0)))
 					{
+						currentObjectPool = std::move(openedPool);
+						selectedObjectID = 0xFFFF;
 						currentPoolValid = true;
 						lastFileName = selectedFileToRead;
+						opened = true;
 						break;
 					}
 				}
 
-				if (false == currentPoolValid)
+				if (!opened)
 				{
-					currentObjectPool.reset();
-
 					ImGui::OpenPopup("Error Loading DDOP");
 				}
 			}
 		}
 	}
 
-	if (ImGui::BeginPopupModal("Error Loading DDOP", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+	if (ImGui::BeginPopupModal("Select Device", NULL, ImGuiWindowFlags_AlwaysAutoResize))
 	{
-		ImGui::TextWrapped("%s could not be read, or is not a valid version 3 or version 4 DDOP.", errorFileName.c_str());
-		ImGui::Separator();
-
-		for (auto &logString : logger.logHistory)
+		std::vector<const char *> deviceLabels;
+		float listWidth = 0.0f;
+		for (const auto &label : taskDataDevices)
 		{
-			ImGui::Text("%s", logString.logText.c_str());
+			deviceLabels.push_back(label.c_str());
+			listWidth = std::max(listWidth, ImGui::CalcTextSize(label.c_str()).x);
 		}
+		ImGui::SetNextItemWidth(listWidth + ImGui::GetStyle().ScrollbarSize + 2.0f * ImGui::GetStyle().WindowPadding.x);
+		ImGui::ListBox("##Devices", &selectedTaskDataDevice, deviceLabels.data(), static_cast<int>(deviceLabels.size()));
 
-		ImGui::SetItemDefaultFocus();
 		if (ImGui::Button("OK", ImVec2(120, 0)))
+		{
+			importSelectedDevice = true;
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Cancel", ImVec2(120, 0)))
 		{
 			ImGui::CloseCurrentPopup();
 		}
 		ImGui::EndPopup();
 	}
+
+	// After EndPopup, because a popup opened inside another modal never shows.
+	if (importSelectedDevice)
+	{
+		auto importedPool = make_pool();
+
+		if (import_task_data_device(pendingTaskData, static_cast<std::size_t>(selectedTaskDataDevice), *importedPool))
+		{
+			currentObjectPool = std::move(importedPool);
+			selectedObjectID = 0xFFFF;
+			currentPoolValid = true;
+			lastFileName.clear();
+		}
+		else
+		{
+			ImGui::OpenPopup("Error Loading XML File");
+		}
+	}
+
+	render_log_error_popup("Error Loading DDOP", (errorFileName + " could not be read, or is not a valid version 3 or version 4 DDOP.").c_str());
+	render_log_error_popup("Error Loading XML File", "There were errors reading the TASKDATA.XML:");
 }
 
 void DDOPGeneratorGUI::parseElementChildrenOfElement(std::uint16_t aObjectID)
@@ -903,9 +1020,9 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 	ImGui::InputText("Extended Structure Label", extendedStructureLabelBuffer, IM_ARRAYSIZE(extendedStructureLabelBuffer));
 
 	auto extendedStructureLabel = std::string(extendedStructureLabelBuffer);
-	if (extendedStructureLabel != object->get_structure_label())
+	std::vector<std::uint8_t> convertedLabel(extendedStructureLabel.begin(), extendedStructureLabel.end());
+	if (convertedLabel != object->get_extended_structure_label())
 	{
-		std::vector<std::uint8_t> convertedLabel(extendedStructureLabel.begin(), extendedStructureLabel.end());
 		object->set_extended_structure_label(convertedLabel);
 	}
 
@@ -926,7 +1043,7 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 	languageCode = std::string(languageCodeBuffer);
 
 	{
-		const char *strings[] = { "Comma", "Decimal", "Reserved", "N/A" };
+		const char *strings[] = { "24 hour", "12 hour (am/pm)", "Reserved", "N/A" };
 		if (ImGui::BeginListBox("Time Format", { 110, 100 }))
 		{
 			for (int i = 0; i < IM_ARRAYSIZE(strings); i++)
@@ -935,6 +1052,28 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 				if (ImGui::Selectable(strings[i], is_selected))
 				{
 					timeFormat = static_cast<isobus::LanguageCommandInterface::TimeFormats>(i);
+				}
+
+				if (is_selected)
+				{
+					ImGui::SetItemDefaultFocus();
+				}
+			}
+			ImGui::EndListBox();
+		}
+	}
+
+	{
+		const char *strings[] = { "Comma", "Point", "Reserved", "N/A" };
+		ImGui::SameLine();
+		if (ImGui::BeginListBox("Decimal Symbol", { 110, 100 }))
+		{
+			for (int i = 0; i < IM_ARRAYSIZE(strings); i++)
+			{
+				const bool is_selected = (static_cast<std::uint8_t>(decimalSymbol) == i);
+				if (ImGui::Selectable(strings[i], is_selected))
+				{
+					decimalSymbol = static_cast<isobus::LanguageCommandInterface::DecimalSymbols>(i);
 				}
 
 				if (is_selected)
@@ -970,7 +1109,6 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 
 	{
 		const char *strings[] = { "Metric", "Imperial/US", "Reserved", "N/A" };
-		ImGui::SameLine();
 		if (ImGui::BeginListBox("Distance Units", { 110, 100 }))
 		{
 			for (int i = 0; i < IM_ARRAYSIZE(strings); i++)
@@ -992,6 +1130,7 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 
 	{
 		const char *strings[] = { "Metric", "Imperial/US", "Reserved", "N/A" };
+		ImGui::SameLine();
 		if (ImGui::BeginListBox("Area Units", { 110, 100 }))
 		{
 			for (int i = 0; i < IM_ARRAYSIZE(strings); i++)
@@ -1035,7 +1174,6 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 
 	{
 		const char *strings[] = { "Metric", "Imperial", "US", "N/A" };
-		ImGui::SameLine();
 		if (ImGui::BeginListBox("Mass Units", { 110, 100 }))
 		{
 			for (int i = 0; i < IM_ARRAYSIZE(strings); i++)
@@ -1057,6 +1195,7 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 
 	{
 		const char *strings[] = { "Metric", "Imperial/US", "Reserved", "N/A" };
+		ImGui::SameLine();
 		if (ImGui::BeginListBox("Force Units", { 110, 100 }))
 		{
 			for (int i = 0; i < IM_ARRAYSIZE(strings); i++)
@@ -1154,6 +1293,25 @@ void DDOPGeneratorGUI::render_device_element_settings(std::shared_ptr<isobus::ta
 {
 	render_designator_setting(object);
 
+	if (true == ImGui::BeginCombo("Type", get_element_type_string(object->get_type()).c_str()))
+	{
+		for (std::uint8_t i = static_cast<std::uint8_t>(isobus::task_controller_object::DeviceElementObject::Type::Device); i <= static_cast<std::uint8_t>(isobus::task_controller_object::DeviceElementObject::Type::NavigationReference); i++)
+		{
+			const auto type = static_cast<isobus::task_controller_object::DeviceElementObject::Type>(i);
+			const bool is_selected = (object->get_type() == type);
+			if (ImGui::Selectable(get_element_type_string(type).c_str(), is_selected))
+			{
+				object->set_type(type);
+			}
+
+			if (is_selected)
+			{
+				ImGui::SetItemDefaultFocus();
+			}
+		}
+		ImGui::EndCombo();
+	}
+
 	ImGui::InputInt("Element Number", &elementNumberBuffer);
 
 	if (elementNumberBuffer > 4095)
@@ -1200,28 +1358,43 @@ void DDOPGeneratorGUI::render_device_element_settings(std::shared_ptr<isobus::ta
 	if (nullptr != currentObjectPool)
 	{
 		auto selectedObject = currentObjectPool->get_object_by_index(addChildComboIndex);
+
+		if (!can_add_device_element_child(object, selectedObject))
+		{
+			selectedObject = nullptr;
+
+			for (std::uint16_t n = 0; n < currentObjectPool->size(); n++)
+			{
+				if (can_add_device_element_child(object, currentObjectPool->get_object_by_index(n)))
+				{
+					addChildComboIndex = n;
+					selectedObject = currentObjectPool->get_object_by_index(n);
+					break;
+				}
+			}
+		}
+
 		if (nullptr != selectedObject)
 		{
 			if (ImGui::BeginCombo("Add Child Object Reference", selectedObject->get_designator().c_str()))
 			{
-				for (int n = 0; n < currentObjectPool->size(); n++)
+				for (std::uint16_t n = 0; n < currentObjectPool->size(); n++)
 				{
-					const bool is_selected = (addChildComboIndex == n);
-					selectedObject = currentObjectPool->get_object_by_index(n);
-					if ((nullptr != selectedObject) &&
-					    (selectedObject->get_object_type() != isobus::task_controller_object::ObjectTypes::Device) &&
-					    (selectedObject->get_object_type() != isobus::task_controller_object::ObjectTypes::DeviceElement))
+					auto childObject = currentObjectPool->get_object_by_index(n);
+
+					if (can_add_device_element_child(object, childObject))
 					{
-						if (ImGui::Selectable((selectedObject->get_designator() + " (" + std::to_string(selectedObject->get_object_id()) + ")").c_str(), is_selected))
+						const bool is_selected = (addChildComboIndex == n);
+
+						if (ImGui::Selectable((childObject->get_designator() + " (" + std::to_string(childObject->get_object_id()) + ")").c_str(), is_selected))
 						{
 							addChildComboIndex = n;
 						}
-					}
 
-					// Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
-					if (is_selected)
-					{
-						ImGui::SetItemDefaultFocus();
+						if (is_selected)
+						{
+							ImGui::SetItemDefaultFocus();
+						}
 					}
 				}
 				ImGui::EndCombo();
@@ -1229,13 +1402,12 @@ void DDOPGeneratorGUI::render_device_element_settings(std::shared_ptr<isobus::ta
 
 			if (ImGui::Button("Add Object"))
 			{
-				auto childID = currentObjectPool->get_object_by_index(addChildComboIndex)->get_object_id();
-				object->add_reference_to_child_object(childID);
+				object->add_reference_to_child_object(selectedObject->get_object_id());
 			}
 		}
 		else
 		{
-			addChildComboIndex = 0;
+			ImGui::Text("Add a device process data or device property object that is not a child of this element yet.");
 		}
 	}
 }
@@ -1671,7 +1843,7 @@ void DDOPGeneratorGUI::on_selected_object_changed(std::shared_ptr<isobus::task_c
 			memcpy(softwareVersionBuffer, object->get_software_version().c_str(), object->get_software_version().length() <= 128 ? object->get_software_version().length() : 128);
 			memcpy(serialNumberBuffer, object->get_serial_number().c_str(), object->get_serial_number().length() <= 128 ? object->get_serial_number().length() : 128);
 			memcpy(structureLabelBuffer, object->get_structure_label().c_str(), object->get_structure_label().length() <= 7 ? object->get_structure_label().length() : 7);
-			memcpy(extendedStructureLabelBuffer, object->get_extended_structure_label().data(), object->get_extended_structure_label().size() <= 128 ? object->get_extended_structure_label().size() : 128);
+			memcpy(extendedStructureLabelBuffer, object->get_extended_structure_label().data(), object->get_extended_structure_label().size() <= isobus::task_controller_object::DeviceObject::MAX_EXTENDED_STRUCTURE_LABEL_LENGTH ? object->get_extended_structure_label().size() : isobus::task_controller_object::DeviceObject::MAX_EXTENDED_STRUCTURE_LABEL_LENGTH);
 
 			std::ostringstream hexStream;
 			hexStream << std::hex << object->get_iso_name();
@@ -1747,6 +1919,96 @@ void DDOPGeneratorGUI::on_selected_object_changed(std::shared_ptr<isobus::task_c
 		default:
 			break;
 	}
+}
+
+void DDOPGeneratorGUI::prune_references_to_object(std::uint16_t idOfDeletedObject, std::uint16_t parentOfDeletedObject)
+{
+	for (std::uint32_t i = 0; i < currentObjectPool->size(); i++)
+	{
+		auto objectToProcess = currentObjectPool->get_object_by_index(i);
+
+		if (nullptr != objectToProcess)
+		{
+			switch (objectToProcess->get_object_type())
+			{
+				case isobus::task_controller_object::ObjectTypes::DeviceElement:
+				{
+					auto element = std::static_pointer_cast<isobus::task_controller_object::DeviceElementObject>(objectToProcess);
+
+					while (element->remove_reference_to_child_object(idOfDeletedObject))
+					{
+					}
+
+					// A parent of NULL_OBJECT_ID is rejected as an orphan when the pool is serialized,
+					// so the children of a deleted element are adopted by its parent instead
+					if (idOfDeletedObject == element->get_parent_object())
+					{
+						element->set_parent_object(parentOfDeletedObject);
+					}
+				}
+				break;
+
+				case isobus::task_controller_object::ObjectTypes::DeviceProcessData:
+				{
+					auto processData = std::static_pointer_cast<isobus::task_controller_object::DeviceProcessDataObject>(objectToProcess);
+
+					if (idOfDeletedObject == processData->get_device_value_presentation_object_id())
+					{
+						processData->set_device_value_presentation_object_id(isobus::NULL_OBJECT_ID);
+					}
+				}
+				break;
+
+				case isobus::task_controller_object::ObjectTypes::DeviceProperty:
+				{
+					auto property = std::static_pointer_cast<isobus::task_controller_object::DevicePropertyObject>(objectToProcess);
+
+					if (idOfDeletedObject == property->get_device_value_presentation_object_id())
+					{
+						property->set_device_value_presentation_object_id(isobus::NULL_OBJECT_ID);
+					}
+				}
+				break;
+
+				default:
+					break;
+			}
+		}
+	}
+}
+
+// ISO 11783-10 A.3.1 allows exactly one device element of type device per pool. A pool holding a
+// second one, or holding nothing else at all, stays deletable so it can be repaired or cleared.
+bool DDOPGeneratorGUI::is_undeletable_root_element(std::shared_ptr<isobus::task_controller_object::Object> object)
+{
+	auto rootCandidate = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceElementObject>(object);
+
+	if ((nullptr == rootCandidate) ||
+	    (isobus::task_controller_object::DeviceElementObject::Type::Device != rootCandidate->get_type()))
+	{
+		return false;
+	}
+
+	std::uint32_t numberOfRootElements = 0;
+	std::uint32_t numberOfOtherElements = 0;
+
+	for (std::uint32_t i = 0; i < currentObjectPool->size(); i++)
+	{
+		auto element = std::dynamic_pointer_cast<isobus::task_controller_object::DeviceElementObject>(currentObjectPool->get_object_by_index(i));
+
+		if (nullptr != element)
+		{
+			if (isobus::task_controller_object::DeviceElementObject::Type::Device == element->get_type())
+			{
+				numberOfRootElements++;
+			}
+			else
+			{
+				numberOfOtherElements++;
+			}
+		}
+	}
+	return (1 == numberOfRootElements) && (0 != numberOfOtherElements);
 }
 
 std::string DDOPGeneratorGUI::get_element_type_string(isobus::task_controller_object::DeviceElementObject::Type type)

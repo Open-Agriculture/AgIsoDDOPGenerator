@@ -50,6 +50,8 @@ private:
 	void render_save();
 	void render_all_objects();
 	void on_selected_object_changed(std::shared_ptr<isobus::task_controller_object::Object> newObject);
+	void prune_references_to_object(std::uint16_t idOfDeletedObject, std::uint16_t parentOfDeletedObject);
+	bool is_undeletable_root_element(std::shared_ptr<isobus::task_controller_object::Object> object);
 	static std::string get_element_type_string(isobus::task_controller_object::DeviceElementObject::Type type);
 	static std::string get_object_type_string(isobus::task_controller_object::ObjectTypes type);
 	static std::string get_object_display_name(std::shared_ptr<isobus::task_controller_object::Object> object);
@@ -75,11 +77,14 @@ private:
 	char softwareVersionBuffer[129] = { 0 };
 	char serialNumberBuffer[129] = { 0 };
 	char structureLabelBuffer[8] = { 0 };
-	char extendedStructureLabelBuffer[129] = { 0 };
+	char extendedStructureLabelBuffer[isobus::task_controller_object::DeviceObject::MAX_EXTENDED_STRUCTURE_LABEL_LENGTH + 1] = { 0 };
 	char hexIsoNameBuffer[17] = { 0 };
 	char languageCodeBuffer[3] = { 0 };
 	std::string lastFileName;
 	std::string errorFileName;
+	std::string pendingTaskData;
+	std::vector<std::string> taskDataDevices;
+	int selectedTaskDataDevice = 0;
 	int elementNumberBuffer = 0;
 	int parentObjectBuffer = 0;
 	int ddiBuffer = 0;
@@ -95,6 +100,7 @@ private:
 	std::array<bool, 8> propertiesBitfieldBuffer = { false };
 	std::array<bool, 8> triggerBitfieldBuffer = { false };
 	bool openFileDialogue = false;
+	bool importTaskDataDialogue = false;
 	bool saveModal = false;
 	bool saveAsModal = false;
 	bool exportModal = false;
