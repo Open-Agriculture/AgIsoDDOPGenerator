@@ -9,6 +9,7 @@
 #ifndef GUI_HPP
 #define GUI_HPP
 
+#include "ddop_validator.hpp"
 #include "isobus/isobus/isobus_device_descriptor_object_pool.hpp"
 #include "isobus/isobus/isobus_language_command_interface.hpp"
 
@@ -27,6 +28,7 @@ private:
 	static constexpr std::size_t FILE_PATH_BUFFER_MAX_LENGTH = 1024;
 
 	bool render_menu_bar();
+	void render_validation_results();
 	void render_open_file_menu();
 	void parseElementChildrenOfElement(std::uint16_t objectID);
 	void parseChildren(std::shared_ptr<isobus::task_controller_object::DeviceElementObject> element);
@@ -80,6 +82,7 @@ private:
 	char extendedStructureLabelBuffer[isobus::task_controller_object::DeviceObject::MAX_EXTENDED_STRUCTURE_LABEL_LENGTH + 1] = { 0 };
 	char hexIsoNameBuffer[17] = { 0 };
 	char languageCodeBuffer[3] = { 0 };
+	std::vector<DDOPValidationFinding> validationFindings;
 	std::string lastFileName;
 	std::string pendingTaskData;
 	std::vector<std::string> taskDataDevices;
