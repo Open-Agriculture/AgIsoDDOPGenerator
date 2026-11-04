@@ -11,10 +11,10 @@
 #include "isobus/isobus/isobus_data_dictionary.hpp"
 
 #include <algorithm>
-#include <cmath>
 #include <map>
 #include <memory>
 #include <set>
+#include <sstream>
 #include <string>
 
 using Object = isobus::task_controller_object::Object;
@@ -28,34 +28,27 @@ using Severity = DDOPValidationFinding::Severity;
 
 constexpr std::uint16_t NULL_OBJECT_ID = 0xFFFF;
 
-/// @brief The first TC version that accepts a 128 byte designator and an extended structure label
 constexpr std::uint8_t FIRST_VERSION_4_ONLY_FEATURE_LEVEL = 4;
 
-/// @brief A process data message carries the element number in 12 bits, so nothing above this is addressable
+// A process data message carries the element number in 12 bits
 constexpr std::uint16_t MAX_ADDRESSABLE_ELEMENT_NUMBER = 4095;
 
-/// @brief The length of a designator, serial number or software version is stored in a single byte
+// The length of a designator, serial number or software version is stored in a single byte
 constexpr std::size_t MAX_LENGTH_PREFIXED_STRING_LENGTH = 255;
 
-/// @brief ISO 11783-10 defines bits 1 to 3 of the DPD properties bitfield. The rest are reserved.
 constexpr std::uint8_t RESERVED_PROPERTIES_BITS = 0xF8;
-
-/// @brief ISO 11783-10 defines bits 1 to 5 of the DPD trigger methods bitfield. The rest are reserved.
 constexpr std::uint8_t RESERVED_TRIGGER_METHOD_BITS = 0xE0;
-
 constexpr std::uint8_t MAX_NUMBER_OF_DECIMALS = 7;
+constexpr float MIN_SCALE = 0.000000001f;
+constexpr float MAX_SCALE = 100000000.0f;
 constexpr std::size_t MAX_LABELLED_DESIGNATOR_LENGTH = 32;
 
-/// @brief 32 four-byte characters is where the version 4 designator's 128 byte ceiling comes from
+// The version 4 designator's 128 byte ceiling is 32 four-byte characters, not a longer allowance
 constexpr std::size_t MAX_DESIGNATOR_CHARACTERS = 32;
 
-/// @brief The DDI a TC requests to learn which process data belong to the default set
 constexpr std::uint16_t REQUEST_DEFAULT_PROCESS_DATA_DDI = 0xDFFF;
-
-/// @brief Every trigger method, which is what the request default process data object has to offer
 constexpr std::uint8_t ALL_TRIGGER_METHODS = 0x1F;
 
-/// @brief Collects every object of one type, since each check below cares about one or two of them
 template<typename T>
 static std::vector<std::shared_ptr<T>> objects_of_type(isobus::DeviceDescriptorObjectPool &pool)
 {
@@ -73,7 +66,6 @@ static std::vector<std::shared_ptr<T>> objects_of_type(isobus::DeviceDescriptorO
 	return retVal;
 }
 
-/// @brief Joins object IDs the way a finding lists them
 static std::string join_object_ids(const std::vector<std::uint16_t> &objectIDs)
 {
 	std::string retVal;
@@ -85,23 +77,16 @@ static std::string join_object_ids(const std::vector<std::uint16_t> &objectIDs)
 	return retVal;
 }
 
-/// @brief Counts the UTF-8 characters in a string, since a version 4 designator is limited by characters and not by bytes
-static std::size_t utf8_length(const std::string &value)
+static bool is_utf8_continuation_byte(char character)
 {
-	std::size_t retVal = 0;
-
-	for (const auto &character : value)
-	{
-		// A continuation byte carries the top bits 10, so every other byte starts a new character
-		if (0x80 != (0xC0 & static_cast<std::uint8_t>(character)))
-		{
-			retVal++;
-		}
-	}
-	return retVal;
+	return 0x80 == (0xC0 & static_cast<std::uint8_t>(character));
 }
 
-/// @brief Names an object the way the pool's own table IDs do, so a finding can be traced to it
+static std::size_t utf8_length(const std::string &value)
+{
+	return static_cast<std::size_t>(std::count_if(value.begin(), value.end(), [](char character) { return !is_utf8_continuation_byte(character); }));
+}
+
 static std::string object_label(const std::shared_ptr<Object> &object)
 {
 	std::string retVal = object->get_table_id() + " " + std::to_string(object->get_object_id());
@@ -111,8 +96,8 @@ static std::string object_label(const std::shared_ptr<Object> &object)
 	{
 		designator.resize(MAX_LABELLED_DESIGNATOR_LENGTH);
 
-		// Cutting a UTF-8 sequence in half would render as a replacement glyph, so drop the partial character
-		while (!designator.empty() && (0x80 == (0xC0 & static_cast<std::uint8_t>(designator.back()))))
+		// A UTF-8 sequence cut in half renders as a replacement glyph
+		while (!designator.empty() && is_utf8_continuation_byte(designator.back()))
 		{
 			designator.pop_back();
 		}
@@ -126,7 +111,6 @@ static std::string object_label(const std::shared_ptr<Object> &object)
 	return retVal;
 }
 
-/// @brief Reports every device element whose parent, or whose child references, cannot be resolved
 static void check_device_element_references(isobus::DeviceDescriptorObjectPool &pool, std::vector<DDOPValidationFinding> &findings)
 {
 	for (const auto &element : objects_of_type<DeviceElementObject>(pool))
@@ -167,7 +151,6 @@ static void check_device_element_references(isobus::DeviceDescriptorObjectPool &
 	}
 }
 
-/// @brief Reports a process data or property object whose value presentation reference is broken
 static void check_value_presentation_reference(isobus::DeviceDescriptorObjectPool &pool, const std::shared_ptr<Object> &object, std::uint16_t presentationObjectID, std::vector<DDOPValidationFinding> &findings)
 {
 	if (NULL_OBJECT_ID == presentationObjectID)
@@ -186,7 +169,6 @@ static void check_value_presentation_reference(isobus::DeviceDescriptorObjectPoo
 	}
 }
 
-/// @brief Reports every broken value presentation reference in the pool
 static void check_presentation_references(isobus::DeviceDescriptorObjectPool &pool, std::vector<DDOPValidationFinding> &findings)
 {
 	for (const auto &processData : objects_of_type<DeviceProcessDataObject>(pool))
@@ -200,7 +182,6 @@ static void check_presentation_references(isobus::DeviceDescriptorObjectPool &po
 	}
 }
 
-/// @brief Reports the device object's own problems, and the absence of one
 static void check_device_object(isobus::DeviceDescriptorObjectPool &pool, std::vector<DDOPValidationFinding> &findings)
 {
 	auto devices = objects_of_type<DeviceObject>(pool);
@@ -210,7 +191,8 @@ static void check_device_object(isobus::DeviceDescriptorObjectPool &pool, std::v
 		findings.push_back({ Severity::Warning, "The pool has no device object. ISO 11783-10 requires exactly one, and a TC will reject a pool without it." });
 		return;
 	}
-	else if (1 < devices.size())
+
+	if (1 < devices.size())
 	{
 		findings.push_back({ Severity::Warning, "The pool has " + std::to_string(devices.size()) + " device objects. ISO 11783-10 requires exactly one." });
 	}
@@ -223,7 +205,17 @@ static void check_device_object(isobus::DeviceDescriptorObjectPool &pool, std::v
 
 	if (0 == device->get_iso_name())
 	{
-		findings.push_back({ Severity::Warning, "The device object's ISO NAME is 0. A TC compares this against the NAME of the client that uploads the pool, and rejects the pool when they differ." });
+		findings.push_back({ Severity::Warning, "The device object's ISO NAME is 0, which is unlikely to be the client's real NAME. ISO 11783-10 requires it to be the NAME the client claims its address with, and the ISOBUS stack this app is built on rejects a pool whose NAME differs from the uploading client's." });
+	}
+
+	const std::string structureLabel = device->get_structure_label().substr(0, DeviceObject::MAX_STRUCTURE_AND_LOCALIZATION_LABEL_LENGTH);
+
+	for (std::size_t i = 0; i < structureLabel.size(); i++)
+	{
+		if (0xFF == static_cast<std::uint8_t>(structureLabel[i]))
+		{
+			findings.push_back({ Severity::Warning, "Byte " + std::to_string(i + 1) + " of the device object's structure label is 0xFF. ISO 11783-10 allows 0 to 254 in each byte, because a TC answers with 0xFF bytes when it has no pool stored under the requested label." });
+		}
 	}
 
 	if (0xFF != device->get_localization_label()[6])
@@ -248,31 +240,25 @@ static void check_device_object(isobus::DeviceDescriptorObjectPool &pool, std::v
 	}
 }
 
-/// @brief Reports one length-prefixed string that is longer than the TC version allows
 static void check_string_length(const std::string &description, const std::string &value, std::uint8_t taskControllerVersion, std::vector<DDOPValidationFinding> &findings)
 {
+	const bool isVersion4 = (taskControllerVersion >= FIRST_VERSION_4_ONLY_FEATURE_LEVEL);
+	const std::size_t byteLimit = isVersion4 ? Object::MAX_DESIGNATOR_LENGTH : Object::MAX_DESIGNATOR_LEGACY_LENGTH;
+
 	if (value.size() > MAX_LENGTH_PREFIXED_STRING_LENGTH)
 	{
 		findings.push_back({ Severity::Warning, description + " is " + std::to_string(value.size()) + " bytes. Its length is stored in a single byte, so a TC will read the wrong length and every object after it in the pool becomes unreadable." });
 	}
-	else if (taskControllerVersion < FIRST_VERSION_4_ONLY_FEATURE_LEVEL)
+	else if (value.size() > byteLimit)
 	{
-		if (value.size() > Object::MAX_DESIGNATOR_LEGACY_LENGTH)
-		{
-			findings.push_back({ Severity::Warning, description + " is " + std::to_string(value.size()) + " bytes, above the " + std::to_string(Object::MAX_DESIGNATOR_LEGACY_LENGTH) + " byte limit for a version " + std::to_string(taskControllerVersion) + " pool." });
-		}
+		findings.push_back({ Severity::Warning, description + " is " + std::to_string(value.size()) + " bytes, above the " + std::to_string(byteLimit) + " byte limit for a version " + std::to_string(taskControllerVersion) + " pool." });
 	}
-	else if (value.size() > Object::MAX_DESIGNATOR_LENGTH)
-	{
-		findings.push_back({ Severity::Warning, description + " is " + std::to_string(value.size()) + " bytes, above the " + std::to_string(Object::MAX_DESIGNATOR_LENGTH) + " byte limit for a version 4 pool." });
-	}
-	else if (utf8_length(value) > MAX_DESIGNATOR_CHARACTERS)
+	else if (isVersion4 && (utf8_length(value) > MAX_DESIGNATOR_CHARACTERS))
 	{
 		findings.push_back({ Severity::Warning, description + " is " + std::to_string(utf8_length(value)) + " UTF-8 characters, above the ISO 11783-10 limit of " + std::to_string(MAX_DESIGNATOR_CHARACTERS) + " for a version 4 pool. The 128 byte limit is what 32 four-byte characters take up, not a longer allowance." });
 	}
 }
 
-/// @brief Reports every designator, serial number and software version that is too long
 static void check_string_lengths(isobus::DeviceDescriptorObjectPool &pool, std::vector<DDOPValidationFinding> &findings)
 {
 	const std::uint8_t version = pool.get_task_controller_compatibility_level();
@@ -289,7 +275,6 @@ static void check_string_lengths(isobus::DeviceDescriptorObjectPool &pool, std::
 	}
 }
 
-/// @brief Reports element numbers a TC cannot address, or cannot tell apart
 static void check_element_numbers(isobus::DeviceDescriptorObjectPool &pool, std::vector<DDOPValidationFinding> &findings)
 {
 	std::map<std::uint16_t, std::vector<std::uint16_t>> objectIDsByElementNumber;
@@ -313,7 +298,6 @@ static void check_element_numbers(isobus::DeviceDescriptorObjectPool &pool, std:
 	}
 }
 
-/// @brief Reports whether following an element's parents revisits an element instead of terminating
 static bool has_parent_cycle(isobus::DeviceDescriptorObjectPool &pool, std::shared_ptr<DeviceElementObject> element)
 {
 	std::set<std::uint16_t> visited;
@@ -331,28 +315,28 @@ static bool has_parent_cycle(isobus::DeviceDescriptorObjectPool &pool, std::shar
 	return true;
 }
 
-/// @brief Reports a device element tree that is not the single rooted tree ISO 11783-10 describes
+// Several elements naming the device object as their parent is allowed, so only the Device-type element is checked
 static void check_element_hierarchy(isobus::DeviceDescriptorObjectPool &pool, std::vector<DDOPValidationFinding> &findings)
 {
-	std::vector<std::uint16_t> rootElements;
 	std::vector<std::uint16_t> deviceTypeElements;
 
 	for (const auto &element : objects_of_type<DeviceElementObject>(pool))
 	{
-		auto parent = pool.get_object_by_id(element->get_parent_object());
-
-		if ((nullptr != parent) && (ObjectTypes::Device == parent->get_object_type()))
-		{
-			rootElements.push_back(element->get_object_id());
-		}
-
 		if (DeviceElementObject::Type::Device == element->get_type())
 		{
+			auto parent = pool.get_object_by_id(element->get_parent_object());
+
 			deviceTypeElements.push_back(element->get_object_id());
 
 			if (0 != element->get_element_number())
 			{
 				findings.push_back({ Severity::Warning, object_label(element) + " has the type Device but element number " + std::to_string(element->get_element_number()) + ". A TC addresses the device itself as element 0, so it will not find this element there." });
+			}
+
+			// A missing parent is already an error, so only a parent that resolves to the wrong object is reported here
+			if ((nullptr != parent) && (ObjectTypes::Device != parent->get_object_type()))
+			{
+				findings.push_back({ Severity::Warning, object_label(element) + " has the type Device, but its parent is " + object_label(parent) + ". ISO 11783-10 makes the device object the parent of the element that represents the whole device." });
 			}
 		}
 
@@ -370,14 +354,41 @@ static void check_element_hierarchy(isobus::DeviceDescriptorObjectPool &pool, st
 	{
 		findings.push_back({ Severity::Warning, "Device elements " + join_object_ids(deviceTypeElements) + " all have the type Device. ISO 11783-10 requires exactly one." });
 	}
+}
 
-	if (1 < rootElements.size())
+static void check_property_and_process_data_overlap(isobus::DeviceDescriptorObjectPool &pool, std::vector<DDOPValidationFinding> &findings)
+{
+	for (const auto &element : objects_of_type<DeviceElementObject>(pool))
 	{
-		findings.push_back({ Severity::Warning, "Device elements " + join_object_ids(rootElements) + " all name the device object as their parent. The element tree should have a single root." });
+		std::set<std::uint16_t> propertyDDIs;
+		std::set<std::uint16_t> processDataDDIs;
+
+		for (std::uint16_t child = 0; child < element->get_number_child_objects(); child++)
+		{
+			auto childObject = pool.get_object_by_id(element->get_child_object_id(child));
+			auto property = std::dynamic_pointer_cast<DevicePropertyObject>(childObject);
+			auto processData = std::dynamic_pointer_cast<DeviceProcessDataObject>(childObject);
+
+			if (nullptr != property)
+			{
+				propertyDDIs.insert(property->get_ddi());
+			}
+			else if (nullptr != processData)
+			{
+				processDataDDIs.insert(processData->get_ddi());
+			}
+		}
+
+		for (const auto &ddi : propertyDDIs)
+		{
+			if (0 != processDataDDIs.count(ddi))
+			{
+				findings.push_back({ Severity::Warning, object_label(element) + " carries DDI " + std::to_string(ddi) + " both as a device property and as device process data. ISO 11783-10 does not allow the same DDI on one device element through both." });
+			}
+		}
 	}
 }
 
-/// @brief Reports a DDI a TC has no definition for
 static void check_ddi(const std::shared_ptr<Object> &object, std::uint16_t ddi, std::vector<DDOPValidationFinding> &findings)
 {
 	if (ddi > PROPRIETARY_DDI_RANGE_END)
@@ -391,7 +402,6 @@ static void check_ddi(const std::shared_ptr<Object> &object, std::uint16_t ddi, 
 	}
 }
 
-/// @brief Reports process data and property objects a TC cannot use as declared
 static void check_process_data(isobus::DeviceDescriptorObjectPool &pool, std::vector<DDOPValidationFinding> &findings)
 {
 	for (const auto &property : objects_of_type<DevicePropertyObject>(pool))
@@ -403,6 +413,7 @@ static void check_process_data(isobus::DeviceDescriptorObjectPool &pool, std::ve
 	{
 		const std::uint8_t properties = processData->get_properties_bitfield();
 		const std::uint8_t triggers = processData->get_trigger_methods_bitfield();
+		const bool isControlSource = (0 != (properties & static_cast<std::uint8_t>(DeviceProcessDataObject::PropertiesBit::ControlSource)));
 
 		check_ddi(processData, processData->get_ddi(), findings);
 
@@ -411,14 +422,12 @@ static void check_process_data(isobus::DeviceDescriptorObjectPool &pool, std::ve
 			findings.push_back({ Severity::Warning, object_label(processData) + " sets reserved bits in its properties bitfield. ISO 11783-10 defines only the first three." });
 		}
 
-		if ((0 != (properties & static_cast<std::uint8_t>(DeviceProcessDataObject::PropertiesBit::ControlSource))) &&
-		    (pool.get_task_controller_compatibility_level() < FIRST_VERSION_4_ONLY_FEATURE_LEVEL))
+		if (isControlSource && (pool.get_task_controller_compatibility_level() < FIRST_VERSION_4_ONLY_FEATURE_LEVEL))
 		{
 			findings.push_back({ Severity::Warning, object_label(processData) + " is marked as a control source, which only a version 4 TC understands. This pool is set to version " + std::to_string(pool.get_task_controller_compatibility_level()) + "." });
 		}
 
-		if ((0 != (properties & static_cast<std::uint8_t>(DeviceProcessDataObject::PropertiesBit::ControlSource))) &&
-		    (0 != (properties & static_cast<std::uint8_t>(DeviceProcessDataObject::PropertiesBit::Settable))))
+		if (isControlSource && (0 != (properties & static_cast<std::uint8_t>(DeviceProcessDataObject::PropertiesBit::Settable))))
 		{
 			findings.push_back({ Severity::Warning, object_label(processData) + " is marked both settable and a control source. ISO 11783-10 makes those two mutually exclusive." });
 		}
@@ -430,11 +439,7 @@ static void check_process_data(isobus::DeviceDescriptorObjectPool &pool, std::ve
 	}
 }
 
-/// @brief Reports a default set a TC has no way to ask for
-///
-/// A TC learns which process data are in the default set by requesting DDI 0xDFFF, so a pool that marks
-/// members without offering that object never has its default set read. Every pool in the vendor corpus
-/// that marks a member carries the object on the device element numbered 0, offering all trigger methods.
+// A TC reads the default set by requesting DDI 0xDFFF from element 0
 static void check_default_process_data(isobus::DeviceDescriptorObjectPool &pool, std::vector<DDOPValidationFinding> &findings)
 {
 	std::shared_ptr<Object> requestObject;
@@ -486,18 +491,18 @@ static void check_default_process_data(isobus::DeviceDescriptorObjectPool &pool,
 	findings.push_back({ Severity::Warning, object_label(requestObject) + " is the request default process data object, but it is not a child of any device element, so a TC cannot request it." });
 }
 
-/// @brief Reports value presentations that cannot present a value
 static void check_value_presentations(isobus::DeviceDescriptorObjectPool &pool, std::vector<DDOPValidationFinding> &findings)
 {
 	for (const auto &presentation : objects_of_type<DeviceValuePresentationObject>(pool))
 	{
-		if (!std::isfinite(presentation->get_scale()))
+		const float scale = presentation->get_scale();
+
+		// Negated so that NaN, which fails every comparison, is reported too
+		if (!((scale >= MIN_SCALE) && (scale <= MAX_SCALE)))
 		{
-			findings.push_back({ Severity::Warning, object_label(presentation) + " has a scale that is not a finite number. A TC cannot multiply a raw value by it, and it does not survive being written to the pool as a float." });
-		}
-		else if (presentation->get_scale() <= 0.0f)
-		{
-			findings.push_back({ Severity::Warning, object_label(presentation) + " has a scale of " + std::to_string(presentation->get_scale()) + ". A TC multiplies every raw value by the scale, so nothing but the offset would ever be displayed." });
+			std::ostringstream scaleText;
+			scaleText << scale;
+			findings.push_back({ Severity::Warning, object_label(presentation) + " has a scale of " + scaleText.str() + ", outside the 0.000000001 to 100000000 range ISO 11783-10 allows. A TC presents a value as (raw value + offset) * scale." });
 		}
 
 		if (presentation->get_number_of_decimals() > MAX_NUMBER_OF_DECIMALS)
@@ -507,7 +512,6 @@ static void check_value_presentations(isobus::DeviceDescriptorObjectPool &pool, 
 	}
 }
 
-/// @brief Reports objects nothing points at, which a TC can never reach through the pool
 static void check_unreferenced_objects(isobus::DeviceDescriptorObjectPool &pool, std::vector<DDOPValidationFinding> &findings)
 {
 	std::set<std::uint16_t> referencedObjectIDs;
@@ -531,9 +535,6 @@ static void check_unreferenced_objects(isobus::DeviceDescriptorObjectPool &pool,
 	}
 }
 
-/// @brief Serializes the pool and reads it back with the ISOBUS stack this app is built on
-///
-/// This is a read-back check against one implementation, not evidence of what any TC accepts.
 static void check_stack_read_back(isobus::DeviceDescriptorObjectPool &pool, bool foundAnError, std::vector<DDOPValidationFinding> &findings)
 {
 	std::vector<std::uint8_t> binaryPool;
@@ -553,16 +554,9 @@ static void check_stack_read_back(isobus::DeviceDescriptorObjectPool &pool, bool
 		findings.push_back({ Severity::Warning, "The serialized pool cannot be read back by the ISOBUS stack this app is built on. That is not proof a TC will reject it, but nothing here can say what a TC would make of it." });
 		return;
 	}
-
-	if (readBack.size() != pool.size())
-	{
-		findings.push_back({ Severity::Warning, "Reading the serialized pool back yields " + std::to_string(readBack.size()) + " objects instead of " + std::to_string(pool.size()) + ". A reader will not see the pool you built." });
-		return;
-	}
 	std::vector<std::uint8_t> reserializedPool;
 
-	// Comparing the bytes rather than the object count is what catches a field the reader drops or rewrites,
-	// such as the device object's ID, which the stack does not carry back out of the binary at all
+	// Comparing bytes also catches a field the reader drops or rewrites, such as the device object's ID
 	if (!readBack.generate_binary_object_pool(reserializedPool))
 	{
 		findings.push_back({ Severity::Warning, "The pool serializes, but the result cannot be serialized again after being read back. A reader does not end up holding the pool you built." });
@@ -586,6 +580,7 @@ std::vector<DDOPValidationFinding> validate_ddop(isobus::DeviceDescriptorObjectP
 	check_string_lengths(pool, findings);
 	check_element_numbers(pool, findings);
 	check_element_hierarchy(pool, findings);
+	check_property_and_process_data_overlap(pool, findings);
 	check_process_data(pool, findings);
 	check_default_process_data(pool, findings);
 	check_value_presentations(pool, findings);

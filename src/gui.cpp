@@ -523,6 +523,14 @@ void DDOPGeneratorGUI::render_validation_results()
 			ImGui::TextWrapped("%s: %s", isError ? "Error" : "Warning", finding.message.c_str());
 			ImGui::PopStyleColor();
 		}
+
+		if (0 != errorCount)
+		{
+			for (const auto &logString : logger.logHistory)
+			{
+				ImGui::TextWrapped("%s", logString.logText.c_str());
+			}
+		}
 		ImGui::EndChild();
 	}
 }
