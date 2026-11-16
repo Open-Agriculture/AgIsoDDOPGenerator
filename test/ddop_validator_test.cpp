@@ -151,6 +151,29 @@ static void check_default_set_needs_its_request_object()
 	CHECK(wrongElement->add_device_element("Bin", 7, 1, DeviceElementObject::Type::Bin, 5));
 	std::static_pointer_cast<DeviceElementObject>(wrongElement->get_object_by_id(5))->add_reference_to_child_object(4);
 	CHECK(fires(validate_ddop(*wrongElement), "hangs off element number 7"));
+
+	auto unreferenced = make_clean_pool(4);
+	CHECK(std::static_pointer_cast<DeviceElementObject>(unreferenced->get_object_by_id(1))->remove_reference_to_child_object(4));
+	CHECK(1 == times_fired(validate_ddop(*unreferenced), "not a child of any device element"));
+
+	// Element 7 comes first in the pool, but element 0 also references the object
+	auto bothElements = make_clean_pool(4);
+	CHECK(bothElements->remove_object_by_id(1));
+	CHECK(bothElements->add_device_element("Bin", 7, 1, DeviceElementObject::Type::Bin, 5));
+	CHECK(bothElements->add_device_element("Root", 0, 0, DeviceElementObject::Type::Device, 1));
+	auto bothRoot = std::static_pointer_cast<DeviceElementObject>(bothElements->get_object_by_id(1));
+	bothRoot->add_reference_to_child_object(3);
+	bothRoot->add_reference_to_child_object(4);
+	bothRoot->add_reference_to_child_object(5);
+	std::static_pointer_cast<DeviceElementObject>(bothElements->get_object_by_id(5))->add_reference_to_child_object(4);
+	CHECK(!fires(validate_ddop(*bothElements), "hangs off"));
+
+	// Every request object is checked, not only the last one in the pool
+	CHECK(bothElements->add_device_process_data("Request Default Process Data", 0xDFFF, 0xFFFF, 0x00, 0x1F, 6));
+	std::static_pointer_cast<DeviceElementObject>(bothElements->get_object_by_id(5))->add_reference_to_child_object(6);
+	CHECK(bothElements->add_device_process_data("Request Default Process Data", 0xDFFF, 0xFFFF, 0x00, 0x1F, 7));
+	bothRoot->add_reference_to_child_object(7);
+	CHECK(fires(validate_ddop(*bothElements), "hangs off element number 7"));
 }
 
 static void check_device_element_is_number_zero()

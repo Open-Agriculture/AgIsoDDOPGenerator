@@ -442,7 +442,7 @@ static void check_process_data(isobus::DeviceDescriptorObjectPool &pool, std::ve
 // A TC reads the default set by requesting DDI 0xDFFF from element 0
 static void check_default_process_data(isobus::DeviceDescriptorObjectPool &pool, std::vector<DDOPValidationFinding> &findings)
 {
-	std::shared_ptr<Object> requestObject;
+	std::vector<std::shared_ptr<DeviceProcessDataObject>> requestObjects;
 	bool markedAMember = false;
 
 	for (const auto &processData : objects_of_type<DeviceProcessDataObject>(pool))
@@ -454,7 +454,7 @@ static void check_default_process_data(isobus::DeviceDescriptorObjectPool &pool,
 
 		if (REQUEST_DEFAULT_PROCESS_DATA_DDI == processData->get_ddi())
 		{
-			requestObject = processData;
+			requestObjects.push_back(processData);
 
 			if (ALL_TRIGGER_METHODS != processData->get_trigger_methods_bitfield())
 			{
@@ -468,27 +468,41 @@ static void check_default_process_data(isobus::DeviceDescriptorObjectPool &pool,
 		return;
 	}
 
-	if (nullptr == requestObject)
+	if (requestObjects.empty())
 	{
 		findings.push_back({ Severity::Warning, "Process data objects are marked as members of the default set, but the pool has no object for DDI 57343 (0xDFFF), which is what a TC requests to read that set. Nothing will ever ask for these values." });
 		return;
 	}
 
-	for (const auto &element : objects_of_type<DeviceElementObject>(pool))
+	// An unreferenced request object is already reported by check_unreferenced_objects()
+	for (const auto &requestObject : requestObjects)
 	{
-		for (std::uint16_t child = 0; child < element->get_number_child_objects(); child++)
+		bool onElementZero = false;
+		std::shared_ptr<DeviceElementObject> otherElement;
+
+		for (const auto &element : objects_of_type<DeviceElementObject>(pool))
 		{
-			if (requestObject->get_object_id() == element->get_child_object_id(child))
+			for (std::uint16_t child = 0; child < element->get_number_child_objects(); child++)
 			{
-				if (0 != element->get_element_number())
+				if (requestObject->get_object_id() == element->get_child_object_id(child))
 				{
-					findings.push_back({ Severity::Warning, object_label(requestObject) + " is the request default process data object, but it hangs off element number " + std::to_string(element->get_element_number()) + ". A TC asks element 0 for it." });
+					if (0 == element->get_element_number())
+					{
+						onElementZero = true;
+					}
+					else
+					{
+						otherElement = element;
+					}
 				}
-				return;
 			}
 		}
+
+		if ((!onElementZero) && (nullptr != otherElement))
+		{
+			findings.push_back({ Severity::Warning, object_label(requestObject) + " is the request default process data object, but it hangs off element number " + std::to_string(otherElement->get_element_number()) + ". A TC asks element 0 for it." });
+		}
 	}
-	findings.push_back({ Severity::Warning, object_label(requestObject) + " is the request default process data object, but it is not a child of any device element, so a TC cannot request it." });
 }
 
 static void check_value_presentations(isobus::DeviceDescriptorObjectPool &pool, std::vector<DDOPValidationFinding> &findings)
