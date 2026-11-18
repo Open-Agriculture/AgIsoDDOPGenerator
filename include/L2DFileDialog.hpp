@@ -114,7 +114,7 @@ namespace FileDialog
 				initial_path_set = true;
 			}
 
-			ImGui::SetNextWindowSize(ImVec2(780.0f, 460.0f));
+			ImGui::SetNextWindowSize(ImVec2(780.0f * ImGui::GetStyle().FontScaleDpi, 460.0f * ImGui::GetStyle().FontScaleDpi));
 			const char *window_title = (type == FileDialogType::OpenFile ? "Select a file" : "Select a folder");
 			ImGui::Begin(window_title, nullptr, ImGuiWindowFlags_NoResize);
 
@@ -140,7 +140,7 @@ namespace FileDialog
 
 			ImGui::Text("%s", file_dialog_current_path.c_str());
 
-			ImGui::BeginChild("Directories##1", ImVec2(200, 300), true, ImGuiWindowFlags_HorizontalScrollbar);
+			ImGui::BeginChild("Directories##1", ImVec2(200 * ImGui::GetStyle().FontScaleDpi, 300 * ImGui::GetStyle().FontScaleDpi), true, ImGuiWindowFlags_HorizontalScrollbar);
 
 			if (ImGui::Selectable("..", false, ImGuiSelectableFlags_AllowDoubleClick, ImVec2(ImGui::GetContentRegionAvail().x, 0)))
 			{
@@ -151,7 +151,7 @@ namespace FileDialog
 			}
 			for (int i = 0; i < folders.size(); ++i)
 			{
-				if (ImGui::Selectable(folders[i].path().stem().string().c_str(), i == file_dialog_folder_select_index, ImGuiSelectableFlags_AllowDoubleClick, ImVec2(ImGui::GetWindowContentRegionWidth(), 0)))
+				if (ImGui::Selectable(folders[i].path().stem().string().c_str(), i == file_dialog_folder_select_index, ImGuiSelectableFlags_AllowDoubleClick))
 				{
 					file_dialog_current_file = "";
 					if (ImGui::IsMouseDoubleClicked(0))
@@ -173,24 +173,24 @@ namespace FileDialog
 
 			ImGui::SameLine();
 
-			ImGui::BeginChild("Files##1", ImVec2(516, 300), true, ImGuiWindowFlags_HorizontalScrollbar);
+			ImGui::BeginChild("Files##1", ImVec2(516 * ImGui::GetStyle().FontScaleDpi, 300 * ImGui::GetStyle().FontScaleDpi), true, ImGuiWindowFlags_HorizontalScrollbar);
 			ImGui::Columns(4);
 			static float initial_spacing_column_0 = 230.0f;
 			if (initial_spacing_column_0 > 0)
 			{
-				ImGui::SetColumnWidth(0, initial_spacing_column_0);
+				ImGui::SetColumnWidth(0, initial_spacing_column_0 * ImGui::GetStyle().FontScaleDpi);
 				initial_spacing_column_0 = 0.0f;
 			}
 			static float initial_spacing_column_1 = 80.0f;
 			if (initial_spacing_column_1 > 0)
 			{
-				ImGui::SetColumnWidth(1, initial_spacing_column_1);
+				ImGui::SetColumnWidth(1, initial_spacing_column_1 * ImGui::GetStyle().FontScaleDpi);
 				initial_spacing_column_1 = 0.0f;
 			}
 			static float initial_spacing_column_2 = 80.0f;
 			if (initial_spacing_column_2 > 0)
 			{
-				ImGui::SetColumnWidth(2, initial_spacing_column_2);
+				ImGui::SetColumnWidth(2, initial_spacing_column_2 * ImGui::GetStyle().FontScaleDpi);
 				initial_spacing_column_2 = 0.0f;
 			}
 			if (ImGui::Selectable("File"))
@@ -283,7 +283,7 @@ namespace FileDialog
 
 			for (int i = 0; i < files.size(); ++i)
 			{
-				if (ImGui::Selectable(files[i].path().filename().string().c_str(), i == file_dialog_file_select_index, ImGuiSelectableFlags_AllowDoubleClick, ImVec2(ImGui::GetWindowContentRegionWidth(), 0)))
+				if (ImGui::Selectable(files[i].path().filename().string().c_str(), i == file_dialog_file_select_index, ImGuiSelectableFlags_AllowDoubleClick))
 				{
 					file_dialog_file_select_index = i;
 					file_dialog_current_file = files[i].path().filename().string();
@@ -319,10 +319,10 @@ namespace FileDialog
 
 			std::string selected_file_path = getPathWithTrailingSeparator(file_dialog_current_path) + (file_dialog_current_folder.size() > 0 ? file_dialog_current_folder : file_dialog_current_file);
 			char *buf = &selected_file_path[0];
-			ImGui::PushItemWidth(724);
+			ImGui::PushItemWidth(724 * ImGui::GetStyle().FontScaleDpi);
 			ImGui::InputText("##text", buf, sizeof(buf), ImGuiInputTextFlags_ReadOnly);
 
-			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 6);
+			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 6 * ImGui::GetStyle().FontScaleDpi);
 
 			if (ImGui::Button("New folder"))
 			{
@@ -366,9 +366,9 @@ namespace FileDialog
 			if (ImGui::BeginPopup("DeleteFolderPopup", ImGuiWindowFlags_Modal))
 			{
 				ImGui::TextColored(ImColor(1.0f, 0.0f, 0.2f, 1.0f), "Are you sure you want to delete this folder?");
-				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 6);
+				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 6 * ImGui::GetStyle().FontScaleDpi);
 				ImGui::TextUnformatted(file_dialog_current_folder.c_str());
-				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 6);
+				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 6 * ImGui::GetStyle().FontScaleDpi);
 				if (ImGui::Button("Yes"))
 				{
 					std::filesystem::remove(getPathWithTrailingSeparator(file_dialog_current_path) + file_dialog_current_folder);
@@ -382,7 +382,7 @@ namespace FileDialog
 				ImGui::EndPopup();
 			}
 			ImGui::SameLine();
-			ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 290);
+			ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 290 * ImGui::GetStyle().FontScaleDpi);
 
 			static auto reset_everything = [&]() {
 				file_dialog_file_select_index = 0;
@@ -394,7 +394,7 @@ namespace FileDialog
 			};
 
 			const char *versions[] = { "Version 3", "Version 4" };
-			if (ImGui::BeginListBox("##TC Version", { 100, 50 }))
+			if (ImGui::BeginListBox("##TC Version", { 100 * ImGui::GetStyle().FontScaleDpi, 50 * ImGui::GetStyle().FontScaleDpi }))
 			{
 				for (int n = 0; n < IM_ARRAYSIZE(versions); n++)
 				{

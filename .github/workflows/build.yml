@@ -23,7 +23,7 @@ jobs:
           cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DCAN_DRIVER=None -DCMAKE_BUILD_TYPE=Release
           cmake --build build --config Release
       - name: Package
-        run: Compress-Archive -Path build/Release/*.exe, build/Release/*.dll -DestinationPath windows-executable.zip
+        run: Compress-Archive -Path build/Release/AgIsoDDOPGenerator.exe -DestinationPath windows-executable.zip
       - name: Upload Artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -45,7 +45,7 @@ jobs:
           cmake -S . -B build -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DCAN_DRIVER=None -DCMAKE_BUILD_TYPE=Release
           cmake --build build --config Release
       - name: Package
-        run: (cd build && tar -czf ../macos-executable.tar.gz AgIsoDDOPGenerator libSDL2*.dylib)
+        run: tar -czf macos-executable.tar.gz -C build AgIsoDDOPGenerator
       - name: Upload Artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -64,7 +64,7 @@ jobs:
       - name: Install build dependencies
         run: |
           apt-get update
-          apt-get install -y build-essential cmake git ca-certificates libgl1-mesa-dev libxext-dev
+          apt-get install -y build-essential cmake git ca-certificates libgl1-mesa-dev libxext-dev libx11-dev libxcursor-dev libxi-dev libxfixes-dev libxrandr-dev libxss-dev libxtst-dev
       - name: Checkout
         uses: actions/checkout@v7
         with:
@@ -91,7 +91,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgl1-mesa-dev libxext-dev
+          sudo apt-get install -y libgl1-mesa-dev libxext-dev libx11-dev libxcursor-dev libxi-dev libxfixes-dev libxrandr-dev libxss-dev libxtst-dev
       - name: Checkout
         uses: actions/checkout@v7
         with:

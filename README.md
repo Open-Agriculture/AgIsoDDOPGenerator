@@ -4,7 +4,7 @@
 
 This program allows you to create, save, load, and edit ISO11783 device descriptor object pools (DDOP) for use with communicating with an ISOBUS task controller.
 
-It is written in C++ and is based on the DDOP objects from [AgIsoStack++](https://github.com/Open-Agriculture/AgIsoStack-plus-plus), with a simple GUI created with [Dear ImGui](https://github.com/ocornut/imgui) on SDL2 and OpenGL 3.
+It is written in C++ and is based on the DDOP objects from [AgIsoStack++](https://github.com/Open-Agriculture/AgIsoStack-plus-plus), with a simple GUI created with [Dear ImGui](https://github.com/ocornut/imgui) on SDL3 and OpenGL 3.
 
 When used in combination with AgIsoStack (or any other TC client), it provides an easy way to visualize your DDOP, build a binary version of it, and easily deserialize it back into C++ objects if you want to interact with a DDOP in your own application.
 
@@ -49,13 +49,13 @@ Save at version 3 unless every TC you target is version 4. AgIsoStack lowers the
 
 Prebuilt binaries for Windows, Linux and macOS 11+ (Apple Silicon) are attached to every [release](https://github.com/Open-Agriculture/AgIsoDDOPGenerator/releases).
 
-The Linux binary links SDL2 and OpenGL dynamically and does not bundle them:
+The Linux binary has SDL3 built in and links OpenGL dynamically:
 
 ```
-sudo apt install libsdl2-2.0-0 libopengl0
+sudo apt install libgl1 libopengl0
 ```
 
-The macOS binary is unsigned, so Gatekeeper quarantines it on download. Keep it in the same folder as the `libSDL2-2.0.0.dylib` from the same archive, and clear the quarantine flag:
+The macOS binary is unsigned, so Gatekeeper quarantines it on download. Clear the quarantine flag:
 
 ```
 xattr -dr com.apple.quarantine AgIsoDDOPGenerator
@@ -68,7 +68,7 @@ This project is built with CMake.
 Make sure you have all the dependencies installed.
 
 ```
-sudo apt install cmake build-essential libgl1-mesa-dev libxext-dev
+sudo apt install cmake build-essential libgl1-mesa-dev libxext-dev libx11-dev libxcursor-dev libxi-dev libxfixes-dev libxrandr-dev libxss-dev libxtst-dev
 ```
 
 Clone the repo. The submodules are not optional - if you already cloned without them, run `git submodule update --init --recursive`:
