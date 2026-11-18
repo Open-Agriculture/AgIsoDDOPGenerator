@@ -32,7 +32,10 @@ find_package(OpenGL REQUIRED)
 
 set(BUILD_TESTING OFF)
 add_subdirectory(submodules/agisostack)
-add_subdirectory(submodules/sdl)
+set(SDL_STATIC
+    ON
+    CACHE BOOL "" FORCE)
+add_subdirectory(submodules/sdl EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/tinyxml2 EXCLUDE_FROM_ALL)
 
 target_sources(
@@ -46,48 +49,18 @@ target_sources(
           submodules/imgui/imgui_draw.cpp
           submodules/imgui/imgui_tables.cpp
           submodules/imgui/imgui_widgets.cpp
-          submodules/imgui/backends/imgui_impl_sdl2.cpp
+          submodules/imgui/backends/imgui_impl_sdl3.cpp
           submodules/imgui/backends/imgui_impl_opengl3.cpp)
 
-target_include_directories(
-  AgIsoDDOPGenerator PUBLIC "include" submodules/imgui
-                            submodules/imgui/backends submodules/sdl/include)
+target_include_directories(AgIsoDDOPGenerator PUBLIC "include" submodules/imgui
+                                                     submodules/imgui/backends)
 
 target_link_libraries(
   AgIsoDDOPGenerator
-  PRIVATE isobus::Isobus
-          isobus::Utility
-          OpenGL::GL
-          SDL2
-          SDL2main
-          tinyxml2::tinyxml2
-          ${CMAKE_DL_LIBS})
+  PRIVATE isobus::Isobus isobus::Utility OpenGL::GL SDL3::SDL3-static
+          tinyxml2::tinyxml2 ${CMAKE_DL_LIBS})
 
 enable_testing()
 add_subdirectory(test)
 
 install(TARGETS AgIsoDDOPGenerator RUNTIME DESTINATION bin)
-
-if(WIN32 OR APPLE)
-  add_custom_command(
-    TARGET AgIsoDDOPGenerator
-    POST_BUILD
-    COMMENT "Copying the SDL2 library to the build directory"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:SDL2::SDL2>"
-            "$<TARGET_FILE_DIR:AgIsoDDOPGenerator>"
-    VERBATIM)
-endif()
-
-if(APPLE)
-  set(RUNTIME_SEARCH_PATH "@executable_path")
-else()
-  set(RUNTIME_SEARCH_PATH "\$ORIGIN/submodules/sdl")
-endif()
-
-# The rpath CMake computes is the absolute build directory plus an empty entry,
-# which the loader reads as the current working directory - a released binary
-# would load libSDL2 from whatever folder it was started in. Both paths here are
-# relative to the executable instead.
-set_target_properties(
-  AgIsoDDOPGenerator PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE
-                                INSTALL_RPATH "${RUNTIME_SEARCH_PATH}")

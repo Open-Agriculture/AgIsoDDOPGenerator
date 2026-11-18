@@ -7,13 +7,13 @@
 /// @copyright 2023 Adrian Del Grosso and the Open-Agriculture developers
 //================================================================================================
 #include "gui.hpp"
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_opengl.h>
 #include "L2DFileDialog.hpp"
-#include "SDL.h"
-#include "SDL_opengl.h"
 #include "ddop_validator.hpp"
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
-#include "imgui_impl_sdl2.h"
+#include "imgui_impl_sdl3.h"
 #include "isobus/isobus/can_constants.hpp"
 #include "isobus/isobus/isobus_data_dictionary.hpp"
 #include "isobus/utility/iop_file_interface.hpp"
@@ -64,7 +64,7 @@ void DDOPGeneratorGUI::start()
 	isobus::CANStackLogger::set_can_stack_logger_sink(&logger);
 
 	// Setup SDL
-	if (0 != SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER))
+	if (false == SDL_Init(SDL_INIT_VIDEO))
 	{
 		printf("Error: %s\n", SDL_GetError());
 		return;
@@ -98,8 +98,22 @@ void DDOPGeneratorGUI::start()
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 	SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
-	SDL_WindowFlags lWindowFlags = static_cast<SDL_WindowFlags>(SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
-	SDL_Window *lpWindow = SDL_CreateWindow("AgIsoStack DDOP Generator", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, lWindowFlags);
+	float lMainScale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
+	if (0.0f >= lMainScale)
+	{
+		lMainScale = 1.0f;
+	}
+	int lWindowWidth = static_cast<int>(1280 * lMainScale);
+	int lWindowHeight = static_cast<int>(720 * lMainScale);
+	SDL_Rect lUsableBounds = { 0, 0, 0, 0 };
+	if (SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &lUsableBounds))
+	{
+		lWindowWidth = SDL_min(lWindowWidth, lUsableBounds.w * 9 / 10);
+		lWindowHeight = SDL_min(lWindowHeight, lUsableBounds.h * 9 / 10);
+	}
+	SDL_Window *lpWindow = SDL_CreateWindow("AgIsoStack DDOP Generator", lWindowWidth, lWindowHeight, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN | SDL_WINDOW_HIGH_PIXEL_DENSITY);
+	SDL_SetWindowPosition(lpWindow, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+	SDL_ShowWindow(lpWindow);
 	SDL_GLContext lpGLContext = SDL_GL_CreateContext(lpWindow);
 	SDL_GL_MakeCurrent(lpWindow, lpGLContext);
 	SDL_GL_SetSwapInterval(1); // Enable vsync
@@ -108,34 +122,17 @@ void DDOPGeneratorGUI::start()
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	ImGuiIO &lIO = ImGui::GetIO();
-	(void)lIO;
 	lIO.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
 
 	// Setup Dear ImGui style
 	ImGui::StyleColorsDark();
-
-	// When viewports are enabled we tweak WindowRounding/WindowBg so platform windows can look identical to regular ones.
 	ImGuiStyle &lStyle = ImGui::GetStyle();
+	lStyle.ScaleAllSizes(lMainScale);
+	lStyle.FontScaleDpi = lMainScale;
 
 	// Setup Platform/Renderer backends
-	ImGui_ImplSDL2_InitForOpenGL(lpWindow, lpGLContext);
+	ImGui_ImplSDL3_InitForOpenGL(lpWindow, lpGLContext);
 	ImGui_ImplOpenGL3_Init(glsl_version);
-
-	// Load Fonts
-	// - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
-	// - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple.
-	// - If the file cannot be loaded, the function will return NULL. Please handle those errors in your application (e.g. use an assertion, or display an error and quit).
-	// - The fonts will be rasterized at a given size (w/ oversampling) and stored into a texture when calling ImFontAtlas::Build()/GetTexDataAsXXXX(), which ImGui_ImplXXXX_NewFrame below will call.
-	// - Use '#define IMGUI_ENABLE_FREETYPE' in your imconfig file to use Freetype for higher quality font rendering.
-	// - Read 'docs/FONTS.md' for more instructions and details.
-	// - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
-	//io.Fonts->AddFontDefault();
-	//io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeui.ttf", 18.0f);
-	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
-	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
-	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
-	//ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
-	//IM_ASSERT(font != NULL);
 
 	// Our state
 	ImVec4 lClearColor = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
@@ -144,21 +141,15 @@ void DDOPGeneratorGUI::start()
 	bool shouldExit = false;
 	while (false == shouldExit)
 	{
-		// Poll and handle events (inputs, window resize, etc.)
-		// You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
-		// - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy of the mouse data.
-		// - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
-		// Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
 		SDL_Event lEvent;
-		while (0 != SDL_PollEvent(&lEvent))
+		while (SDL_PollEvent(&lEvent))
 		{
-			ImGui_ImplSDL2_ProcessEvent(&lEvent);
-			if (SDL_QUIT == lEvent.type)
+			ImGui_ImplSDL3_ProcessEvent(&lEvent);
+			if (SDL_EVENT_QUIT == lEvent.type)
 			{
 				shouldExit = true;
 			}
-			if ((SDL_WINDOWEVENT == lEvent.type) &&
-			    (SDL_WINDOWEVENT_CLOSE == lEvent.window.event) &&
+			if ((SDL_EVENT_WINDOW_CLOSE_REQUESTED == lEvent.type) &&
 			    (lEvent.window.windowID == SDL_GetWindowID(lpWindow)))
 			{
 				shouldExit = true;
@@ -167,7 +158,7 @@ void DDOPGeneratorGUI::start()
 
 		// Start the Dear ImGui frame
 		ImGui_ImplOpenGL3_NewFrame();
-		ImGui_ImplSDL2_NewFrame();
+		ImGui_ImplSDL3_NewFrame();
 		ImGui::NewFrame();
 
 		// GUI Main Code:
@@ -197,8 +188,8 @@ void DDOPGeneratorGUI::start()
 		if ((nullptr != currentObjectPool) && currentPoolValid)
 		{
 			// A pool is being worked on
-			ImGui::SetNextWindowSize({ lIO.DisplaySize.x, lIO.DisplaySize.y - 20 });
-			ImGui::SetNextWindowPos({ 0, 18 });
+			ImGui::SetNextWindowSize({ lIO.DisplaySize.x, lIO.DisplaySize.y - 20 * ImGui::GetStyle().FontScaleDpi });
+			ImGui::SetNextWindowPos({ 0, 18 * ImGui::GetStyle().FontScaleDpi });
 			ImGui::Begin("DDOP", NULL, ImGuiWindowFlags_NoCollapse);
 
 			// Tree child windows
@@ -266,10 +257,10 @@ void DDOPGeneratorGUI::start()
 
 	// Cleanup
 	ImGui_ImplOpenGL3_Shutdown();
-	ImGui_ImplSDL2_Shutdown();
+	ImGui_ImplSDL3_Shutdown();
 	ImGui::DestroyContext();
 
-	SDL_GL_DeleteContext(lpGLContext);
+	SDL_GL_DestroyContext(lpGLContext);
 	SDL_DestroyWindow(lpWindow);
 	SDL_Quit();
 }
@@ -455,7 +446,7 @@ bool DDOPGeneratorGUI::render_menu_bar()
 		render_validation_results();
 
 		ImGui::SetItemDefaultFocus();
-		if (ImGui::Button("OK", ImVec2(120, 0)))
+		if (ImGui::Button("OK", ImVec2(120 * ImGui::GetStyle().FontScaleDpi, 0)))
 		{
 			ImGui::CloseCurrentPopup();
 		}
@@ -472,7 +463,7 @@ bool DDOPGeneratorGUI::render_menu_bar()
 		ImGui::Separator();
 
 		ImGui::SetItemDefaultFocus();
-		if (ImGui::Button("OK", ImVec2(120, 0)))
+		if (ImGui::Button("OK", ImVec2(120 * ImGui::GetStyle().FontScaleDpi, 0)))
 		{
 			currentPoolValid = true;
 			ImGui::CloseCurrentPopup();
@@ -513,7 +504,7 @@ void DDOPGeneratorGUI::render_validation_results()
 		ImGui::Text("A warning means it is generated, but a TC may reject it or read it as something else.");
 		ImGui::Separator();
 
-		ImGui::BeginChild("Findings", ImVec2(760.0f, 320.0f), true);
+		ImGui::BeginChild("Findings", ImVec2(760.0f * ImGui::GetStyle().FontScaleDpi, 320.0f * ImGui::GetStyle().FontScaleDpi), true);
 
 		for (const auto &finding : validationFindings)
 		{
@@ -549,7 +540,7 @@ static void render_log_error_popup(const char *title, const char *heading)
 		}
 
 		ImGui::SetItemDefaultFocus();
-		if (ImGui::Button("OK", ImVec2(120, 0)))
+		if (ImGui::Button("OK", ImVec2(120 * ImGui::GetStyle().FontScaleDpi, 0)))
 		{
 			ImGui::CloseCurrentPopup();
 		}
@@ -647,13 +638,13 @@ void DDOPGeneratorGUI::render_open_file_menu()
 		ImGui::SetNextItemWidth(listWidth + ImGui::GetStyle().ScrollbarSize + 2.0f * ImGui::GetStyle().WindowPadding.x);
 		ImGui::ListBox("##Devices", &selectedTaskDataDevice, deviceLabels.data(), static_cast<int>(deviceLabels.size()));
 
-		if (ImGui::Button("OK", ImVec2(120, 0)))
+		if (ImGui::Button("OK", ImVec2(120 * ImGui::GetStyle().FontScaleDpi, 0)))
 		{
 			importSelectedDevice = true;
 			ImGui::CloseCurrentPopup();
 		}
 		ImGui::SameLine();
-		if (ImGui::Button("Cancel", ImVec2(120, 0)))
+		if (ImGui::Button("Cancel", ImVec2(120 * ImGui::GetStyle().FontScaleDpi, 0)))
 		{
 			ImGui::CloseCurrentPopup();
 		}
@@ -955,7 +946,7 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 
 	{
 		const char *strings[] = { "24 hour", "12 hour (am/pm)", "Reserved", "N/A" };
-		if (ImGui::BeginListBox("Time Format", { 110, 100 }))
+		if (ImGui::BeginListBox("Time Format", { 110 * ImGui::GetStyle().FontScaleDpi, 100 * ImGui::GetStyle().FontScaleDpi }))
 		{
 			for (int i = 0; i < IM_ARRAYSIZE(strings); i++)
 			{
@@ -977,7 +968,7 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 	{
 		const char *strings[] = { "Comma", "Point", "Reserved", "N/A" };
 		ImGui::SameLine();
-		if (ImGui::BeginListBox("Decimal Symbol", { 110, 100 }))
+		if (ImGui::BeginListBox("Decimal Symbol", { 110 * ImGui::GetStyle().FontScaleDpi, 100 * ImGui::GetStyle().FontScaleDpi }))
 		{
 			for (int i = 0; i < IM_ARRAYSIZE(strings); i++)
 			{
@@ -999,7 +990,7 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 	{
 		const char *strings[] = { "ddmmyyyy", "ddyyyymm", "mmyyyydd", "mmddyyyy", "yyyymmdd", "yyyyddmm" };
 		ImGui::SameLine();
-		if (ImGui::BeginListBox("Date Format", { 110, 100 }))
+		if (ImGui::BeginListBox("Date Format", { 110 * ImGui::GetStyle().FontScaleDpi, 100 * ImGui::GetStyle().FontScaleDpi }))
 		{
 			for (int i = 0; i < IM_ARRAYSIZE(strings); i++)
 			{
@@ -1020,7 +1011,7 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 
 	{
 		const char *strings[] = { "Metric", "Imperial/US", "Reserved", "N/A" };
-		if (ImGui::BeginListBox("Distance Units", { 110, 100 }))
+		if (ImGui::BeginListBox("Distance Units", { 110 * ImGui::GetStyle().FontScaleDpi, 100 * ImGui::GetStyle().FontScaleDpi }))
 		{
 			for (int i = 0; i < IM_ARRAYSIZE(strings); i++)
 			{
@@ -1042,7 +1033,7 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 	{
 		const char *strings[] = { "Metric", "Imperial/US", "Reserved", "N/A" };
 		ImGui::SameLine();
-		if (ImGui::BeginListBox("Area Units", { 110, 100 }))
+		if (ImGui::BeginListBox("Area Units", { 110 * ImGui::GetStyle().FontScaleDpi, 100 * ImGui::GetStyle().FontScaleDpi }))
 		{
 			for (int i = 0; i < IM_ARRAYSIZE(strings); i++)
 			{
@@ -1064,7 +1055,7 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 	{
 		const char *strings[] = { "Metric", "Imperial", "US", "N/A" };
 		ImGui::SameLine();
-		if (ImGui::BeginListBox("Volume Units", { 110, 100 }))
+		if (ImGui::BeginListBox("Volume Units", { 110 * ImGui::GetStyle().FontScaleDpi, 100 * ImGui::GetStyle().FontScaleDpi }))
 		{
 			for (int i = 0; i < IM_ARRAYSIZE(strings); i++)
 			{
@@ -1085,7 +1076,7 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 
 	{
 		const char *strings[] = { "Metric", "Imperial", "US", "N/A" };
-		if (ImGui::BeginListBox("Mass Units", { 110, 100 }))
+		if (ImGui::BeginListBox("Mass Units", { 110 * ImGui::GetStyle().FontScaleDpi, 100 * ImGui::GetStyle().FontScaleDpi }))
 		{
 			for (int i = 0; i < IM_ARRAYSIZE(strings); i++)
 			{
@@ -1107,7 +1098,7 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 	{
 		const char *strings[] = { "Metric", "Imperial/US", "Reserved", "N/A" };
 		ImGui::SameLine();
-		if (ImGui::BeginListBox("Force Units", { 110, 100 }))
+		if (ImGui::BeginListBox("Force Units", { 110 * ImGui::GetStyle().FontScaleDpi, 100 * ImGui::GetStyle().FontScaleDpi }))
 		{
 			for (int i = 0; i < IM_ARRAYSIZE(strings); i++)
 			{
@@ -1129,7 +1120,7 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 	{
 		const char *strings[] = { "Metric", "Imperial/US", "Reserved", "N/A" };
 		ImGui::SameLine();
-		if (ImGui::BeginListBox("Temperature Units", { 110, 100 }))
+		if (ImGui::BeginListBox("Temperature Units", { 110 * ImGui::GetStyle().FontScaleDpi, 100 * ImGui::GetStyle().FontScaleDpi }))
 		{
 			for (int i = 0; i < IM_ARRAYSIZE(strings); i++)
 			{
@@ -1150,7 +1141,7 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 
 	{
 		const char *strings[] = { "Metric", "Imperial", "US", "N/A" };
-		if (ImGui::BeginListBox("Generic Units", { 110, 100 }))
+		if (ImGui::BeginListBox("Generic Units", { 110 * ImGui::GetStyle().FontScaleDpi, 100 * ImGui::GetStyle().FontScaleDpi }))
 		{
 			for (int i = 0; i < IM_ARRAYSIZE(strings); i++)
 			{
@@ -1172,7 +1163,7 @@ void DDOPGeneratorGUI::render_device_settings(std::shared_ptr<isobus::task_contr
 	{
 		const char *strings[] = { "Metric", "Imperial/US", "Reserved", "N/A" };
 		ImGui::SameLine();
-		if (ImGui::BeginListBox("Pressure Units", { 110, 100 }))
+		if (ImGui::BeginListBox("Pressure Units", { 110 * ImGui::GetStyle().FontScaleDpi, 100 * ImGui::GetStyle().FontScaleDpi }))
 		{
 			for (int i = 0; i < IM_ARRAYSIZE(strings); i++)
 			{
@@ -2067,7 +2058,7 @@ void DDOPGeneratorGUI::render_save()
 	{
 		ImGui::Text("Are you sure you want to overwrite %s?", lastFileName.c_str());
 		ImGui::Separator();
-		if (ImGui::Button("Save", ImVec2(120, 0)))
+		if (ImGui::Button("Save", ImVec2(120 * ImGui::GetStyle().FontScaleDpi, 0)))
 		{
 			ImGui::CloseCurrentPopup();
 			std::vector<std::uint8_t> binaryDDOP;
@@ -2094,7 +2085,7 @@ void DDOPGeneratorGUI::render_save()
 			}
 		}
 		ImGui::SameLine();
-		if (ImGui::Button("Cancel", ImVec2(120, 0)))
+		if (ImGui::Button("Cancel", ImVec2(120 * ImGui::GetStyle().FontScaleDpi, 0)))
 		{
 			ImGui::CloseCurrentPopup();
 			saveModal = false;
@@ -2116,7 +2107,7 @@ void DDOPGeneratorGUI::render_save()
 		ImGui::ListBox("TC Version", &versionIndex, versions, IM_ARRAYSIZE(versions), 2);
 
 		ImGui::SetItemDefaultFocus();
-		if (ImGui::Button("Save", ImVec2(120, 0)))
+		if (ImGui::Button("Save", ImVec2(120 * ImGui::GetStyle().FontScaleDpi, 0)))
 		{
 			ImGui::CloseCurrentPopup();
 
@@ -2163,7 +2154,7 @@ void DDOPGeneratorGUI::render_save()
 			}
 		}
 		ImGui::SameLine();
-		if (ImGui::Button("Cancel", ImVec2(120, 0)))
+		if (ImGui::Button("Cancel", ImVec2(120 * ImGui::GetStyle().FontScaleDpi, 0)))
 		{
 			ImGui::CloseCurrentPopup();
 			saveAsModal = false;
@@ -2179,7 +2170,7 @@ void DDOPGeneratorGUI::render_save()
 		ImGui::InputText("File Name", filePathBuffer, IM_ARRAYSIZE(filePathBuffer));
 
 		ImGui::SetItemDefaultFocus();
-		if (ImGui::Button("Export", ImVec2(120, 0)))
+		if (ImGui::Button("Export", ImVec2(120 * ImGui::GetStyle().FontScaleDpi, 0)))
 		{
 			ImGui::CloseCurrentPopup();
 
@@ -2212,7 +2203,7 @@ void DDOPGeneratorGUI::render_save()
 			}
 		}
 		ImGui::SameLine();
-		if (ImGui::Button("Cancel", ImVec2(120, 0)))
+		if (ImGui::Button("Cancel", ImVec2(120 * ImGui::GetStyle().FontScaleDpi, 0)))
 		{
 			ImGui::CloseCurrentPopup();
 		}
@@ -2232,7 +2223,7 @@ void DDOPGeneratorGUI::render_save()
 	{
 		ImGui::Text("File was saved.");
 
-		if (ImGui::Button("OK", ImVec2(120, 0)))
+		if (ImGui::Button("OK", ImVec2(120 * ImGui::GetStyle().FontScaleDpi, 0)))
 		{
 			ImGui::CloseCurrentPopup();
 			saveAsModal = false;
@@ -2250,7 +2241,7 @@ void DDOPGeneratorGUI::render_save()
 			ImGui::Text("%s", logString.logText.c_str());
 		}
 
-		if (ImGui::Button("OK", ImVec2(120, 0)))
+		if (ImGui::Button("OK", ImVec2(120 * ImGui::GetStyle().FontScaleDpi, 0)))
 		{
 			ImGui::CloseCurrentPopup();
 			saveAsModal = false;
