@@ -14,6 +14,7 @@
 #include "isobus/isobus/isobus_language_command_interface.hpp"
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -27,9 +28,20 @@ public:
 private:
 	static constexpr std::size_t FILE_PATH_BUFFER_MAX_LENGTH = 1024;
 
+	// Shared with the SDL dialog callback, which can run on another thread and after this object is gone
+	struct FileDialogHandoff
+	{
+		std::mutex mutex;
+		bool done = false;
+		std::string path;
+		std::string error;
+	};
+
 	bool render_menu_bar();
 	void render_validation_results();
 	void render_open_file_menu();
+	void show_open_file_dialog(bool importTaskData, std::uint8_t version);
+	static void on_file_dialog_closed(void *userdata, const char *const *filelist, int filter);
 	void parseElementChildrenOfElement(std::uint16_t objectID);
 	void parseChildren(std::shared_ptr<isobus::task_controller_object::DeviceElementObject> element);
 	void render_object_tree();
@@ -73,6 +85,7 @@ private:
 	isobus::LanguageCommandInterface::UnitSystem genericUnitSystem = isobus::LanguageCommandInterface::UnitSystem::Metric;
 
 	std::unique_ptr<isobus::DeviceDescriptorObjectPool> currentObjectPool;
+	std::shared_ptr<FileDialogHandoff> fileDialogHandoff; // Set while a dialog is open
 	std::vector<std::uint8_t> loadedIopData;
 	char filePathBuffer[FILE_PATH_BUFFER_MAX_LENGTH] = { 0 };
 	char designatorBuffer[129] = { 0 };
@@ -99,9 +112,9 @@ private:
 	int addChildComboIndex = 0;
 	float scaleBuffer = 0.0f;
 	std::uint16_t selectedObjectID = 0xFFFF;
+	std::uint8_t openVersion = 3;
 	std::array<bool, 8> propertiesBitfieldBuffer = { false };
 	std::array<bool, 8> triggerBitfieldBuffer = { false };
-	bool openFileDialogue = false;
 	bool importTaskDataDialogue = false;
 	bool saveModal = false;
 	bool saveAsModal = false;
