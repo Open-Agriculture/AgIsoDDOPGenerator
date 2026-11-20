@@ -26,8 +26,6 @@ public:
 	void start();
 
 private:
-	static constexpr std::size_t FILE_PATH_BUFFER_MAX_LENGTH = 1024;
-
 	// Shared with the SDL dialog callback, which can run on another thread and after this object is gone
 	struct FileDialogHandoff
 	{
@@ -37,10 +35,18 @@ private:
 		std::string error;
 	};
 
+	enum class FileDialogAction
+	{
+		OpenDDOP,
+		ImportTaskData,
+		SaveDDOP,
+		ExportTaskData
+	};
+
 	bool render_menu_bar();
 	void render_validation_results();
 	void render_open_file_menu();
-	void show_open_file_dialog(bool importTaskData, std::uint8_t version);
+	void show_file_dialog(FileDialogAction action, std::uint8_t version);
 	static void on_file_dialog_closed(void *userdata, const char *const *filelist, int filter);
 	void parseElementChildrenOfElement(std::uint16_t objectID);
 	void parseChildren(std::shared_ptr<isobus::task_controller_object::DeviceElementObject> element);
@@ -61,6 +67,8 @@ private:
 	void render_device_property_components(std::shared_ptr<isobus::task_controller_object::DevicePropertyObject> object);
 	void render_device_presentation_components(std::shared_ptr<isobus::task_controller_object::DeviceValuePresentationObject> object);
 	void render_save();
+	bool save_ddop(const std::string &path);
+	bool export_task_data(const std::string &path);
 	void render_all_objects();
 	void on_selected_object_changed(std::shared_ptr<isobus::task_controller_object::Object> newObject);
 	void prune_references_to_object(std::uint16_t idOfDeletedObject, std::uint16_t parentOfDeletedObject);
@@ -87,7 +95,6 @@ private:
 	std::unique_ptr<isobus::DeviceDescriptorObjectPool> currentObjectPool;
 	std::shared_ptr<FileDialogHandoff> fileDialogHandoff; // Set while a dialog is open
 	std::vector<std::uint8_t> loadedIopData;
-	char filePathBuffer[FILE_PATH_BUFFER_MAX_LENGTH] = { 0 };
 	char designatorBuffer[129] = { 0 };
 	char softwareVersionBuffer[129] = { 0 };
 	char serialNumberBuffer[129] = { 0 };
@@ -109,17 +116,14 @@ private:
 	int valueBuffer = 0;
 	int numberDecimalsBuffer = 0;
 	int offsetBuffer = 0;
-	int versionIndex = 0;
 	int addChildComboIndex = 0;
 	float scaleBuffer = 0.0f;
 	std::uint16_t selectedObjectID = 0xFFFF;
-	std::uint8_t openVersion = 3;
+	std::uint8_t fileDialogVersion = 3;
 	std::array<bool, 8> propertiesBitfieldBuffer = { false };
 	std::array<bool, 8> triggerBitfieldBuffer = { false };
-	bool importTaskDataDialogue = false;
+	FileDialogAction fileDialogAction = FileDialogAction::OpenDDOP;
 	bool saveModal = false;
-	bool saveAsModal = false;
-	bool exportModal = false;
 	bool currentPoolValid = false;
 };
 

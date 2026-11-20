@@ -158,25 +158,13 @@ void DDOPGeneratorGUI::start()
 		ImGui::NewFrame();
 
 		// GUI Main Code:
-		bool prevSaveAsModalState = saveAsModal;
 		bool prevSaveModalState = saveModal;
 		shouldExit |= render_menu_bar();
 		render_open_file_menu();
 
-		if ((saveAsModal != prevSaveAsModalState) && saveAsModal)
-		{
-			ImGui::OpenPopup("##Save As Modal");
-		}
-
 		if ((saveModal != prevSaveModalState))
 		{
 			ImGui::OpenPopup("##Save Modal");
-		}
-
-		if (exportModal)
-		{
-			ImGui::OpenPopup("##Export Modal");
-			exportModal = false;
 		}
 
 		render_save();
@@ -276,7 +264,7 @@ bool DDOPGeneratorGUI::render_menu_bar()
 			{
 				retVal = true;
 			}
-			if (ImGui::MenuItem("New", "Create a new DDOP"))
+			if (ImGui::MenuItem("New", "Create a new DDOP", false, nullptr == fileDialogHandoff))
 			{
 				shouldShowNewDDOP = true;
 
@@ -297,11 +285,11 @@ bool DDOPGeneratorGUI::render_menu_bar()
 			{
 				if (ImGui::MenuItem("Version 3", "Load a version 3 DDOP from a file"))
 				{
-					show_open_file_dialog(false, 3);
+					show_file_dialog(FileDialogAction::OpenDDOP, 3);
 				}
 				if (ImGui::MenuItem("Version 4", "Load a version 4 DDOP from a file"))
 				{
-					show_open_file_dialog(false, 4);
+					show_file_dialog(FileDialogAction::OpenDDOP, 4);
 				}
 				ImGui::EndMenu();
 			}
@@ -309,16 +297,17 @@ bool DDOPGeneratorGUI::render_menu_bar()
 			{
 				if (ImGui::MenuItem("Version 3", "Load a device from an ISOXML TASKDATA.XML file as version 3"))
 				{
-					show_open_file_dialog(true, 3);
+					show_file_dialog(FileDialogAction::ImportTaskData, 3);
 				}
 				if (ImGui::MenuItem("Version 4", "Load a device from an ISOXML TASKDATA.XML file as version 4"))
 				{
-					show_open_file_dialog(true, 4);
+					show_file_dialog(FileDialogAction::ImportTaskData, 4);
 				}
 				ImGui::EndMenu();
 			}
 
-			// A dialog result arriving while a save modal is open would swap the pool it saves
+			// A dialog result arriving while a save modal is open would swap the pool it saves.
+			// Read once per frame, so Save and Close check again for an item that fired above them in the same frame.
 			const bool saveDisabled = (!currentPoolValid) || (nullptr != fileDialogHandoff);
 
 			if (saveDisabled)
@@ -329,25 +318,30 @@ bool DDOPGeneratorGUI::render_menu_bar()
 			{
 				if (lastFileName.empty())
 				{
-					saveAsModal = true;
-					memset(filePathBuffer, 0, IM_ARRAYSIZE(filePathBuffer));
+					show_file_dialog(FileDialogAction::SaveDDOP, currentObjectPool->get_task_controller_compatibility_level());
 				}
-				else
+				else if (nullptr == fileDialogHandoff)
 				{
 					saveModal = true;
 				}
 			}
-			if (ImGui::MenuItem("Save as", "Save current DDOP to a file"))
+			if (ImGui::BeginMenu("Save as"))
 			{
-				saveAsModal = true;
-				memset(filePathBuffer, 0, IM_ARRAYSIZE(filePathBuffer));
+				if (ImGui::MenuItem("Version 3", "Save current DDOP to a file as version 3"))
+				{
+					show_file_dialog(FileDialogAction::SaveDDOP, 3);
+				}
+				if (ImGui::MenuItem("Version 4", "Save current DDOP to a file as version 4"))
+				{
+					show_file_dialog(FileDialogAction::SaveDDOP, 4);
+				}
+				ImGui::EndMenu();
 			}
 			if (ImGui::MenuItem("Export as ISOXML", "Export current DDOP to an ISOXML TASKDATA.XML file"))
 			{
-				exportModal = true;
-				memset(filePathBuffer, 0, IM_ARRAYSIZE(filePathBuffer));
+				show_file_dialog(FileDialogAction::ExportTaskData, currentObjectPool->get_task_controller_compatibility_level());
 			}
-			if (ImGui::MenuItem("Close", "Closes the active file"))
+			if (ImGui::MenuItem("Close", "Closes the active file") && (nullptr == fileDialogHandoff) && (!saveModal))
 			{
 				lastFileName.clear();
 				currentObjectPool.reset();
@@ -555,12 +549,45 @@ static void render_log_error_popup(const char *title, const char *heading)
 	}
 }
 
-void DDOPGeneratorGUI::show_open_file_dialog(bool importTaskData, std::uint8_t version)
+void DDOPGeneratorGUI::show_file_dialog(FileDialogAction action, std::uint8_t version)
 {
-	importTaskDataDialogue = importTaskData;
-	openVersion = version;
+	// Two menu items can fire in one frame, before the menu sees the first dialog or save modal
+	if ((nullptr != fileDialogHandoff) || saveModal)
+	{
+		return;
+	}
+	fileDialogAction = action;
+	fileDialogVersion = version;
 	fileDialogHandoff = std::make_shared<FileDialogHandoff>();
-	SDL_ShowOpenFileDialog(on_file_dialog_closed, new std::shared_ptr<FileDialogHandoff>(fileDialogHandoff), SDL_GL_GetCurrentWindow(), nullptr, 0, nullptr, false);
+	auto userdata = new std::shared_ptr<FileDialogHandoff>(fileDialogHandoff);
+
+	if ((FileDialogAction::OpenDDOP == action) || (FileDialogAction::ImportTaskData == action))
+	{
+		SDL_ShowOpenFileDialog(on_file_dialog_closed, userdata, SDL_GL_GetCurrentWindow(), nullptr, 0, nullptr, false);
+	}
+	else
+	{
+		std::string defaultLocation = lastFileName;
+
+		if ((FileDialogAction::ExportTaskData == action) || lastFileName.empty())
+		{
+			// Absolute, because the Linux portal is another process and would resolve a bare name against its own directory
+			defaultLocation = lastFileName.substr(0, lastFileName.find_last_of("/\\") + 1);
+
+			if (defaultLocation.empty())
+			{
+				char *currentDirectory = SDL_GetCurrentDirectory();
+
+				if (nullptr != currentDirectory)
+				{
+					defaultLocation = currentDirectory;
+					SDL_free(currentDirectory);
+				}
+			}
+			defaultLocation += (FileDialogAction::SaveDDOP == action) ? "device_descriptor_object_pool.ddop" : "TASKDATA.XML";
+		}
+		SDL_ShowSaveFileDialog(on_file_dialog_closed, userdata, SDL_GL_GetCurrentWindow(), nullptr, 0, defaultLocation.c_str());
+	}
 }
 
 void DDOPGeneratorGUI::on_file_dialog_closed(void *userdata, const char *const *filelist, int)
@@ -576,7 +603,15 @@ void DDOPGeneratorGUI::on_file_dialog_closed(void *userdata, const char *const *
 		}
 		else if (nullptr != filelist[0])
 		{
-			(*handoff)->path = filelist[0];
+			// SDL's zenity backend splits a file name containing a newline into several entries
+			if (nullptr == filelist[1])
+			{
+				(*handoff)->path = filelist[0];
+			}
+			else
+			{
+				(*handoff)->error = "The file dialog returned more than one file";
+			}
 		}
 		(*handoff)->done = true;
 	}
@@ -614,60 +649,73 @@ void DDOPGeneratorGUI::render_open_file_menu()
 	else if (!selectedFileToRead.empty())
 	{
 		logger.logHistory.clear();
-		// SDL takes UTF-8 paths on Windows too, where a narrow std::fstream uses the ANSI code page
-		std::size_t fileSize = 0;
-		auto fileData = static_cast<std::uint8_t *>(SDL_LoadFile(selectedFileToRead.c_str(), &fileSize));
-		loadedIopData.clear();
 
-		if (nullptr != fileData)
+		if (FileDialogAction::SaveDDOP == fileDialogAction)
 		{
-			loadedIopData.assign(fileData, fileData + fileSize);
-			SDL_free(fileData);
+			currentObjectPool->set_task_controller_compatibility_level(fileDialogVersion);
+			ImGui::OpenPopup(save_ddop(selectedFileToRead) ? "Save Success" : "Save Failed");
 		}
-
-		if (loadedIopData.empty())
+		else if (FileDialogAction::ExportTaskData == fileDialogAction)
 		{
-			if (importTaskDataDialogue)
-			{
-				taskDataFileName = selectedFileToRead;
-				LOG_ERROR("[DDOP]: The file could not be read, or it is empty.");
-				ImGui::OpenPopup("Error Loading XML File");
-			}
-		}
-		else if (importTaskDataDialogue)
-		{
-			taskDataFileName = selectedFileToRead;
-			pendingTaskData.assign(loadedIopData.begin(), loadedIopData.end());
-			taskDataDevices = list_task_data_devices(pendingTaskData);
-			selectedTaskDataDevice = 0;
-
-			if (taskDataDevices.empty())
-			{
-				ImGui::OpenPopup("Error Loading XML File");
-			}
-			else if (1 == taskDataDevices.size())
-			{
-				importSelectedDevice = true;
-			}
-			else
-			{
-				ImGui::OpenPopup("Select Device");
-			}
+			ImGui::OpenPopup(export_task_data(selectedFileToRead) ? "Save Success" : "Save Failed");
 		}
 		else
 		{
-			auto openedPool = std::make_unique<isobus::DeviceDescriptorObjectPool>(openVersion);
+			// SDL takes UTF-8 paths on Windows too, where a narrow std::fstream uses the ANSI code page
+			std::size_t fileSize = 0;
+			auto fileData = static_cast<std::uint8_t *>(SDL_LoadFile(selectedFileToRead.c_str(), &fileSize));
+			loadedIopData.clear();
 
-			if (true == openedPool->deserialize_binary_object_pool(loadedIopData, isobus::NAME(0)))
+			if (nullptr != fileData)
 			{
-				currentObjectPool = std::move(openedPool);
-				selectedObjectID = 0xFFFF;
-				currentPoolValid = true;
-				lastFileName = selectedFileToRead;
+				loadedIopData.assign(fileData, fileData + fileSize);
+				SDL_free(fileData);
+			}
+
+			if (loadedIopData.empty())
+			{
+				if (FileDialogAction::ImportTaskData == fileDialogAction)
+				{
+					taskDataFileName = selectedFileToRead;
+					LOG_ERROR("[DDOP]: The file could not be read, or it is empty.");
+					ImGui::OpenPopup("Error Loading XML File");
+				}
+			}
+			else if (FileDialogAction::ImportTaskData == fileDialogAction)
+			{
+				taskDataFileName = selectedFileToRead;
+				pendingTaskData.assign(loadedIopData.begin(), loadedIopData.end());
+				taskDataDevices = list_task_data_devices(pendingTaskData);
+				selectedTaskDataDevice = 0;
+
+				if (taskDataDevices.empty())
+				{
+					ImGui::OpenPopup("Error Loading XML File");
+				}
+				else if (1 == taskDataDevices.size())
+				{
+					importSelectedDevice = true;
+				}
+				else
+				{
+					ImGui::OpenPopup("Select Device");
+				}
 			}
 			else
 			{
-				ImGui::OpenPopup("Error Loading DDOP");
+				auto openedPool = std::make_unique<isobus::DeviceDescriptorObjectPool>(fileDialogVersion);
+
+				if (true == openedPool->deserialize_binary_object_pool(loadedIopData, isobus::NAME(0)))
+				{
+					currentObjectPool = std::move(openedPool);
+					selectedObjectID = 0xFFFF;
+					currentPoolValid = true;
+					lastFileName = selectedFileToRead;
+				}
+				else
+				{
+					ImGui::OpenPopup("Error Loading DDOP");
+				}
 			}
 		}
 	}
@@ -700,7 +748,7 @@ void DDOPGeneratorGUI::render_open_file_menu()
 	// After EndPopup, because a popup opened inside another modal never shows.
 	if (importSelectedDevice)
 	{
-		auto importedPool = std::make_unique<isobus::DeviceDescriptorObjectPool>(openVersion);
+		auto importedPool = std::make_unique<isobus::DeviceDescriptorObjectPool>(fileDialogVersion);
 
 		if (import_task_data_device(pendingTaskData, static_cast<std::size_t>(selectedTaskDataDevice), *importedPool))
 		{
@@ -2108,25 +2156,9 @@ void DDOPGeneratorGUI::render_save()
 		if (ImGui::Button("Save", ImVec2(120 * ImGui::GetStyle().FontScaleDpi, 0)))
 		{
 			ImGui::CloseCurrentPopup();
-			std::vector<std::uint8_t> binaryDDOP;
 			logger.logHistory.clear();
-			auto serializationSuccess = currentObjectPool->generate_binary_object_pool(binaryDDOP);
-
-			if (serializationSuccess)
-			{
-				if (SDL_SaveFile(lastFileName.c_str(), binaryDDOP.data(), binaryDDOP.size()))
-				{
-					shouldShowSaveSucceeded = true;
-				}
-				else
-				{
-					shouldShowSaveFailed = true;
-				}
-			}
-			else
-			{
-				shouldShowSaveFailed = true;
-			}
+			shouldShowSaveSucceeded = save_ddop(lastFileName);
+			shouldShowSaveFailed = !shouldShowSaveSucceeded;
 		}
 		ImGui::SameLine();
 		if (ImGui::Button("Cancel", ImVec2(120 * ImGui::GetStyle().FontScaleDpi, 0)))
@@ -2136,118 +2168,6 @@ void DDOPGeneratorGUI::render_save()
 		}
 		ImGui::EndPopup();
 	}
-	if (ImGui::BeginPopupModal("##Save As Modal", NULL, ImGuiWindowFlags_AlwaysAutoResize))
-	{
-		if (ImGui::IsWindowAppearing() && (nullptr != currentObjectPool))
-		{
-			versionIndex = (4 == currentObjectPool->get_task_controller_compatibility_level()) ? 1 : 0;
-		}
-
-		ImGui::Text("Enter file name");
-		ImGui::Separator();
-
-		ImGui::InputText("File Name", filePathBuffer, IM_ARRAYSIZE(filePathBuffer));
-		const char *versions[] = { "Version 3", "Version 4" };
-		ImGui::ListBox("TC Version", &versionIndex, versions, IM_ARRAYSIZE(versions), 2);
-
-		ImGui::SetItemDefaultFocus();
-		if (ImGui::Button("Save", ImVec2(120 * ImGui::GetStyle().FontScaleDpi, 0)))
-		{
-			ImGui::CloseCurrentPopup();
-
-			if ((nullptr != currentObjectPool) && currentPoolValid)
-			{
-				if (0 == versionIndex)
-				{
-					currentObjectPool->set_task_controller_compatibility_level(3);
-				}
-				else
-				{
-					currentObjectPool->set_task_controller_compatibility_level(4);
-				}
-
-				std::vector<std::uint8_t> binaryDDOP;
-				logger.logHistory.clear();
-				auto serializationSuccess = currentObjectPool->generate_binary_object_pool(binaryDDOP);
-
-				if (serializationSuccess)
-				{
-					auto fileName = std::string(filePathBuffer);
-
-					if (fileName.empty())
-					{
-						fileName = "device_descriptor_object_pool.ddop";
-					}
-					if (SDL_SaveFile(fileName.c_str(), binaryDDOP.data(), binaryDDOP.size()))
-					{
-						lastFileName = fileName;
-						shouldShowSaveSucceeded = true;
-					}
-					else
-					{
-						shouldShowSaveFailed = true;
-					}
-				}
-				else
-				{
-					shouldShowSaveFailed = true;
-				}
-			}
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Cancel", ImVec2(120 * ImGui::GetStyle().FontScaleDpi, 0)))
-		{
-			ImGui::CloseCurrentPopup();
-			saveAsModal = false;
-		}
-		ImGui::EndPopup();
-	}
-
-	if (ImGui::BeginPopupModal("##Export Modal", NULL, ImGuiWindowFlags_AlwaysAutoResize))
-	{
-		ImGui::Text("Enter file name");
-		ImGui::Separator();
-
-		ImGui::InputText("File Name", filePathBuffer, IM_ARRAYSIZE(filePathBuffer));
-
-		ImGui::SetItemDefaultFocus();
-		if (ImGui::Button("Export", ImVec2(120 * ImGui::GetStyle().FontScaleDpi, 0)))
-		{
-			ImGui::CloseCurrentPopup();
-
-			if ((nullptr != currentObjectPool) && currentPoolValid)
-			{
-				std::string taskDataXML;
-				logger.logHistory.clear();
-
-				if (currentObjectPool->generate_task_data_iso_xml(taskDataXML))
-				{
-					const char *fileName = (0 == filePathBuffer[0]) ? "TASKDATA.XML" : filePathBuffer;
-
-					if (SDL_SaveFile(fileName, taskDataXML.data(), taskDataXML.size()))
-					{
-						shouldShowSaveSucceeded = true;
-					}
-					else
-					{
-						shouldShowSaveFailed = true;
-						LOG_ERROR("[DDOP]: Could not write \"%s\": %s", fileName, SDL_GetError());
-					}
-				}
-				else
-				{
-					shouldShowSaveFailed = true;
-				}
-			}
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Cancel", ImVec2(120 * ImGui::GetStyle().FontScaleDpi, 0)))
-		{
-			ImGui::CloseCurrentPopup();
-		}
-		ImGui::EndPopup();
-	}
-
 	if (shouldShowSaveFailed)
 	{
 		ImGui::OpenPopup("Save Failed");
@@ -2264,7 +2184,6 @@ void DDOPGeneratorGUI::render_save()
 		if (ImGui::Button("OK", ImVec2(120 * ImGui::GetStyle().FontScaleDpi, 0)))
 		{
 			ImGui::CloseCurrentPopup();
-			saveAsModal = false;
 			saveModal = false;
 		}
 		ImGui::EndPopup();
@@ -2282,11 +2201,39 @@ void DDOPGeneratorGUI::render_save()
 		if (ImGui::Button("OK", ImVec2(120 * ImGui::GetStyle().FontScaleDpi, 0)))
 		{
 			ImGui::CloseCurrentPopup();
-			saveAsModal = false;
 			saveModal = false;
 		}
 		ImGui::EndPopup();
 	}
+}
+
+static bool write_file(const std::string &path, const void *data, std::size_t size)
+{
+	const bool retVal = SDL_SaveFile(path.c_str(), data, size);
+
+	if (!retVal)
+	{
+		LOG_ERROR("[DDOP]: Could not write \"%s\": %s", path.c_str(), SDL_GetError());
+	}
+	return retVal;
+}
+
+bool DDOPGeneratorGUI::save_ddop(const std::string &path)
+{
+	std::vector<std::uint8_t> binaryDDOP;
+	const bool retVal = currentObjectPool->generate_binary_object_pool(binaryDDOP) && write_file(path, binaryDDOP.data(), binaryDDOP.size());
+
+	if (retVal)
+	{
+		lastFileName = path;
+	}
+	return retVal;
+}
+
+bool DDOPGeneratorGUI::export_task_data(const std::string &path)
+{
+	std::string taskDataXML;
+	return currentObjectPool->generate_task_data_iso_xml(taskDataXML) && write_file(path, taskDataXML.data(), taskDataXML.size());
 }
 
 void DDOPGeneratorGUI::render_all_objects()
