@@ -629,12 +629,14 @@ void DDOPGeneratorGUI::render_open_file_menu()
 		{
 			if (importTaskDataDialogue)
 			{
-				LOG_ERROR("[DDOP]: Could not read \"%s\", or it is empty.", selectedFileToRead.c_str());
+				taskDataFileName = selectedFileToRead;
+				LOG_ERROR("[DDOP]: The file could not be read, or it is empty.");
 				ImGui::OpenPopup("Error Loading XML File");
 			}
 		}
 		else if (importTaskDataDialogue)
 		{
+			taskDataFileName = selectedFileToRead;
 			pendingTaskData.assign(loadedIopData.begin(), loadedIopData.end());
 			taskDataDevices = list_task_data_devices(pendingTaskData);
 			selectedTaskDataDevice = 0;
@@ -714,7 +716,7 @@ void DDOPGeneratorGUI::render_open_file_menu()
 	}
 
 	render_log_error_popup("Error Loading DDOP", "There were errors loading the DDOP. Make sure you selected the correct TC version.");
-	render_log_error_popup("Error Loading XML File", "There were errors reading the TASKDATA.XML:");
+	render_log_error_popup("Error Loading XML File", ("There were errors reading " + taskDataFileName + ":").c_str());
 	render_log_error_popup("Error Opening File Dialog", "The file dialog could not be shown. On Linux it needs a desktop portal or zenity.");
 }
 

@@ -98,6 +98,7 @@ private:
 	std::vector<DDOPValidationFinding> validationFindings;
 	std::string lastFileName;
 	std::string pendingTaskData;
+	std::string taskDataFileName;
 	std::vector<std::string> taskDataDevices;
 	int selectedTaskDataDevice = 0;
 	int elementNumberBuffer = 0;
