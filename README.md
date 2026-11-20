@@ -68,7 +68,7 @@ This project is built with CMake.
 Make sure you have all the dependencies installed.
 
 ```
-sudo apt install cmake build-essential libgl1-mesa-dev libxext-dev libx11-dev libxcursor-dev libxi-dev libxfixes-dev libxrandr-dev libxss-dev libxtst-dev
+sudo apt install cmake build-essential libgl1-mesa-dev libxext-dev libx11-dev libxcursor-dev libxi-dev libxfixes-dev libxrandr-dev libxss-dev libxtst-dev libdbus-1-dev
 ```
 
 Clone the repo. The submodules are not optional - if you already cloned without them, run `git submodule update --init --recursive`:

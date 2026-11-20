@@ -202,7 +202,7 @@ static const tinyxml2::XMLElement *first_device(tinyxml2::XMLDocument &document,
 
 		if (nullptr == device)
 		{
-			LOG_ERROR("[DDOP]: The TASKDATA.XML has no inline DVC element. Device descriptions in files referenced through XFR are not supported.");
+			LOG_ERROR("[DDOP]: The file has no inline DVC element. Device descriptions in files referenced through XFR are not supported.");
 		}
 	}
 	return device;
@@ -231,7 +231,7 @@ bool import_task_data_device(const std::string &taskData, std::size_t deviceInde
 
 		if (nullptr == device)
 		{
-			LOG_ERROR("[DDOP]: The TASKDATA.XML has no DVC number %zu.", deviceIndex + 1);
+			LOG_ERROR("[DDOP]: The file has no DVC number %zu.", deviceIndex + 1);
 		}
 	}
 
